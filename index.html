@@ -2,8 +2,8 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8">
-<!-- ノッチ/ホームバー回避のため viewport-fit=cover、iOSの自動ズーム抑止のため user-scalable=no -->
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<!-- ノッチ/ホームバーを避けつつ、利用者によるピンチズームは妨げない -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#EDEFF2" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#1B1E24" media="(prefers-color-scheme: dark)">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -853,24 +853,122 @@ var DEF={
   best:{combo:0, streak:0},
   daily:{goal:20, day:null, ids:{}, bonus:false, achieved:0},
   stats:{answers:0, correct:0, spell:0},
+  /* Pro版と同じキーを共有するため、通常版でも購入権利を保持する */
+  dlc:{wordPlus:false, order:null, at:0, price:480,
+       examKit:false, examOrder:null, examAt:0, examPrice:560},
+  reading:{},
   badges:{},
   settings:{haptics:true, gyro:false, reduceMotion:false, rate:0.92, autoSpeak:true}
 };
+function isObj(v){ return !!v && typeof v==='object' && !Array.isArray(v); }
 function merge(base, src){
   Object.keys(src||{}).forEach(function(k){
-    if(src[k] && typeof src[k]==='object' && !Array.isArray(src[k]) && base[k] && typeof base[k]==='object'){ merge(base[k], src[k]); }
+    if(k==='__proto__' || k==='prototype' || k==='constructor') return;
+    if(isObj(src[k]) && isObj(base[k])){ merge(base[k], src[k]); }
     else if(src[k]!==undefined && src[k]!==null){ base[k]=src[k]; }
   });
   return base;
 }
-var S;
-try{ var raw=localStorage.getItem(KEY); S = raw? merge(clone(DEF), JSON.parse(raw)) : clone(DEF); }
-catch(e){ S = clone(DEF); }
-var saveTimer=null;
-function save(){
-  clearTimeout(saveTimer);
-  saveTimer=setTimeout(function(){ try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){} }, 120);
+function finite(v, fallback, min, max){
+  v=Number(v);
+  if(!Number.isFinite(v)) return fallback;
+  if(min!==undefined) v=Math.max(min,v);
+  if(max!==undefined) v=Math.min(max,v);
+  return v;
 }
+function normalizeState(src){
+  var o=merge(clone(DEF), isObj(src)?src:{});
+  o.xp=finite(o.xp,0,0);
+  o.streak=finite(o.streak,0,0);
+  o.lastDay=typeof o.lastDay==='string'?o.lastDay:null;
+  ['records','history','best','daily','stats','dlc','reading','badges','settings'].forEach(function(k){
+    if(!isObj(o[k])) o[k]=clone(DEF[k]);
+  });
+  Object.keys(o.records).forEach(function(id){
+    var r=o.records[id];
+    if(!isObj(r)){ delete o.records[id]; return; }
+    r.s=['new','learning','mastered'].indexOf(r.s)>=0?r.s:'new';
+    ['e','i','due','reps','wrong','seen','m30','updatedAt'].forEach(function(k){ r[k]=finite(r[k],k==='e'?2.5:0,0); });
+  });
+  Object.keys(o.history).forEach(function(k){ o.history[k]=finite(o.history[k],0,0); });
+  o.best.combo=finite(o.best.combo,0,0); o.best.streak=finite(o.best.streak,0,0);
+  o.daily.goal=finite(o.daily.goal,20,1,500);
+  o.daily.day=typeof o.daily.day==='string'?o.daily.day:null;
+  if(!isObj(o.daily.ids)) o.daily.ids={};
+  Object.keys(o.daily.ids).forEach(function(k){ if(!o.daily.ids[k]) delete o.daily.ids[k]; else o.daily.ids[k]=1; });
+  o.daily.bonus=!!o.daily.bonus; o.daily.achieved=finite(o.daily.achieved,0,0);
+  ['answers','correct','spell'].forEach(function(k){ o.stats[k]=finite(o.stats[k],0,0); });
+  o.dlc.wordPlus=!!o.dlc.wordPlus; o.dlc.examKit=!!o.dlc.examKit;
+  ['at','price','examAt','examPrice'].forEach(function(k){ o.dlc[k]=finite(o.dlc[k],DEF.dlc[k]||0,0); });
+  ['haptics','gyro','reduceMotion','autoSpeak'].forEach(function(k){ o.settings[k]=!!o.settings[k]; });
+  o.settings.rate=finite(o.settings.rate,.92,.5,1.5);
+  return o;
+}
+function readStored(){
+  try{ var raw=localStorage.getItem(KEY); return raw?normalizeState(JSON.parse(raw)):clone(DEF); }
+  catch(e){ return clone(DEF); }
+}
+function same(a,b){ try{return JSON.stringify(a)===JSON.stringify(b);}catch(e){return false;} }
+function changedMap(latest,current,base,preferTime){
+  var out=clone(isObj(latest)?latest:{});
+  Object.keys(isObj(base)?base:{}).forEach(function(k){
+    if(!Object.prototype.hasOwnProperty.call(current,k)) delete out[k];
+  });
+  Object.keys(isObj(current)?current:{}).forEach(function(k){
+    var localChanged=!Object.prototype.hasOwnProperty.call(base,k) || !same(current[k],base[k]);
+    if(!localChanged) return;
+    if(preferTime && Object.prototype.hasOwnProperty.call(latest,k) &&
+       !same(latest[k],base[k]) && finite(latest[k]&&latest[k].updatedAt,0)>finite(current[k]&&current[k].updatedAt,0)) return;
+    out[k]=clone(current[k]);
+  });
+  return out;
+}
+function combineForSave(latest,current,base){
+  latest=normalizeState(latest); current=normalizeState(current); base=normalizeState(base);
+  var out=clone(latest);
+  out.xp=Math.max(0,latest.xp+(current.xp-base.xp));
+  ['answers','correct','spell'].forEach(function(k){ out.stats[k]=Math.max(0,latest.stats[k]+(current.stats[k]-base.stats[k])); });
+  out.history=clone(latest.history);
+  Object.keys(current.history).forEach(function(k){
+    var d=current.history[k]-(base.history[k]||0);
+    if(d) out.history[k]=Math.max(0,(latest.history[k]||0)+d);
+  });
+  out.records=changedMap(latest.records,current.records,base.records,true);
+  out.reading=changedMap(latest.reading,current.reading,base.reading,false);
+  out.badges=merge(clone(latest.badges),current.badges);
+  out.best.combo=Math.max(latest.best.combo,current.best.combo);
+  out.best.streak=Math.max(latest.best.streak,current.best.streak);
+  if(current.lastDay!==base.lastDay){ out.lastDay=current.lastDay; out.streak=current.streak; }
+  if(current.daily.day!==base.daily.day){
+    out.daily=clone(current.daily); out.daily.achieved=Math.max(latest.daily.achieved,current.daily.achieved);
+  }else if(current.daily.day===latest.daily.day){
+    out.daily.ids=merge(clone(latest.daily.ids),current.daily.ids);
+    out.daily.bonus=latest.daily.bonus||current.daily.bonus;
+    out.daily.achieved=Math.max(latest.daily.achieved,current.daily.achieved);
+    if(current.daily.goal!==base.daily.goal) out.daily.goal=current.daily.goal;
+  }
+  if(!same(current.settings,base.settings)) out.settings=clone(current.settings);
+  out.dlc=changedMap(latest.dlc,current.dlc,base.dlc,false);
+  out._rev=Math.max(finite(latest._rev,0),finite(current._rev,0))+1;
+  return normalizeState(out);
+}
+var S=readStored(), BASE=clone(S), storageOK=true;
+function save(replace){
+  try{
+    S=replace?normalizeState(S):combineForSave(readStored(),S,BASE);
+    localStorage.setItem(KEY,JSON.stringify(S));
+    var check=JSON.parse(localStorage.getItem(KEY)||'null');
+    if(!check) throw new Error('保存内容を確認できません');
+    BASE=clone(S); storageOK=true; return true;
+  }catch(e){ storageOK=false; return false; }
+}
+window.addEventListener('storage',function(e){
+  if(e.key!==KEY || !e.newValue) return;
+  try{
+    S=normalizeState(JSON.parse(e.newValue)); BASE=clone(S);
+    renderTop(); renderHome(); renderBook(); renderStats();
+  }catch(err){}
+});
 /* 日付が変わったらデイリー分をリセット */
 function ensureDay(){
   var t=dayKey();
@@ -938,8 +1036,8 @@ function addDaily(id){
   var n=Object.keys(S.daily.ids).length;
   if(!S.daily.bonus && n>=S.daily.goal){
     S.daily.bonus=true; S.daily.achieved=(S.daily.achieved||0)+1;
-    save();
-    setTimeout(function(){ toast('デイリーゴール達成。ボーナス +50 XP', 'star'); addXP(50,{silent:true}); }, 420);
+    addXP(50,{silent:true});
+    toast('デイリーゴール達成。ボーナス +50 XP', 'star');
   }
   save();
 }
@@ -1018,6 +1116,7 @@ function grade(id, ok){
   }
   var bonus=0;
   if(r.s==='mastered' && !r.m30){ r.m30=1; bonus=30; }
+  r.updatedAt=now;
   save();
   return bonus;
 }
@@ -1180,6 +1279,7 @@ function renderStats(){
    --------------------------------------------------------------- */
 var VIEWS=['home','study','book','stats'];
 function showView(name){
+  if(VIEWS.indexOf(name)<0) return;
   VIEWS.forEach(function(v){ $('view-'+v).classList.toggle('active', v===name); });
   [].forEach.call(document.querySelectorAll('.tab'), function(t){
     t.setAttribute('aria-selected', String(t.dataset.view===name));
@@ -1187,6 +1287,7 @@ function showView(name){
   if(name==='home') renderHome();
   if(name==='stats') renderStats();
   if(name==='book') renderBook();
+  if(location.hash!=='#'+name){ try{ history.replaceState(null,'','#'+name); }catch(e){} }
   haptic(HAP.tap);
 }
 [].forEach.call(document.querySelectorAll('.tab'), function(t){
@@ -1236,8 +1337,22 @@ function renderMenu(){
 /* ---------------------------------------------------------------
    11. セッション本体
    --------------------------------------------------------------- */
-var sess=null;
+var sess=null, sessTimers=[];
+function clearSessionTimers(){
+  sessTimers.forEach(function(id){ clearTimeout(id); });
+  sessTimers=[];
+}
+function sessionLater(fn,ms){
+  var owner=sess;
+  var id=setTimeout(function(){
+    sessTimers=sessTimers.filter(function(x){ return x!==id; });
+    if(sess===owner && owner) fn();
+  },ms);
+  sessTimers.push(id);
+  return id;
+}
 function startSession(opt){
+  clearSessionTimers();
   var levels=opt.levels||cfg.levels, n=opt.n||cfg.n;
   var q=buildQueue({levels:levels, n:n, weak:!!opt.weak});
   if(!q.length){
@@ -1254,6 +1369,7 @@ function startSession(opt){
   renderStep();
 }
 function endSessionToMenu(){
+  clearSessionTimers();
   sess=null;
   $('session').style.display='none';
   $('studyMenu').style.display='flex';
@@ -1397,7 +1513,7 @@ function flipTop(){
   haptic(HAP.tap);
   if(c.classList.contains('flip') && S.settings.autoSpeak){
     var w=BY_ID[c.dataset.id];
-    setTimeout(function(){ speak(w.en); }, 240);
+    sessionLater(function(){ speak(w.en); }, 240);
   }
 }
 /* カードを飛ばして次へ（dir: 1=わかる / -1=わからない） */
@@ -1408,7 +1524,7 @@ function flyCard(dir){
   c.classList.remove('drag');
   if(MOTION()) c.style.transform='translate3d('+(dir*460)+'px,-40px,60px) rotateZ('+(dir*22)+'deg)';
   c.style.opacity='0';
-  setTimeout(function(){
+  sessionLater(function(){
     if(c.parentNode) c.remove();
     // 奥のカードを1枚補充してせり上がらせる
     var deck=$('deck');
@@ -1499,8 +1615,8 @@ function renderQuizStep(mode){
         else if(x===b) x.classList.add('wrong');
         else x.classList.add('dim');
       });
-      if(!ok) setTimeout(function(){ speak(w.w); }, 200);
-      setTimeout(nextStep, ok?700:1300);
+      if(!ok) sessionLater(function(){ speak(w.w); }, 200);
+      sessionLater(nextStep, ok?700:1300);
     });
   });
   $('btnQuit2').addEventListener('click', endSessionToMenu);
@@ -1533,7 +1649,7 @@ function renderSpellStep(){
     $('judge').className='judge '+(ok?'ok':'ng');
     inp.blur(); inp.disabled=true;
     speak(w.w);
-    setTimeout(nextStep, ok?900:1600);
+    sessionLater(nextStep, ok?900:1600);
   }
   $('spellGo').addEventListener('click', judge);
   inp.addEventListener('keydown', function(e){ if(e.key==='Enter') judge(); });
@@ -1542,7 +1658,7 @@ function renderSpellStep(){
     answer(false,15);
     $('judge').textContent='正解は '+w.w; $('judge').className='judge ng';
     inp.disabled=true; speak(w.w);
-    setTimeout(nextStep,1500);
+    sessionLater(nextStep,1500);
   });
   $('btnQuit3').addEventListener('click', endSessionToMenu);
 }
@@ -1579,7 +1695,7 @@ var book={q:'', lv:'all', ring:false};
 function filteredWords(){
   var q=book.q.trim().toLowerCase();
   return WORDS.filter(function(w){
-    if(book.lv!=='all' && w.lv!==book.lv) return false;
+    if(book.lv!=='all' && book.lv!=='weak' && w.lv!==book.lv) return false;
     if(book.lv==='weak' && !isWeak(w)) return false;
     if(!q) return true;
     return w.w.toLowerCase().indexOf(q)>=0 || w.ja.indexOf(q)>=0 || w.ja.toLowerCase().indexOf(q)>=0;
@@ -1622,7 +1738,7 @@ function renderBook(){
 /* 3Dリング（円筒配置。文字は常に正面を向くよう逆回転させて可読性を確保） */
 var ring={items:[], rot:0, step:0, R:250};
 function buildRing(list){
-  ring.items=list.slice(0,12);
+  ring.items=list.slice();
   ring.step=360/Math.max(ring.items.length,1);
   ring.rot=0;
   var host=$('ring3d');
@@ -1632,9 +1748,12 @@ function buildRing(list){
     $('ringStage').style.overflow='visible';
     host.style.position='static';
     host.innerHTML=ring.items.map(function(w){
-      return '<div class="ring-face glass" style="position:static;margin-bottom:8px">'+
-        '<div class="rw">'+esc(w.w)+'</div><div class="rm">'+esc(w.ja)+'</div><div class="tiny">'+esc(w.ipa)+'</div></div>';
+      return '<button type="button" class="ring-face glass" data-ring-id="'+w.id+'" style="position:static;margin-bottom:8px;width:100%;text-align:left">'+
+        '<span class="rw">'+esc(w.w)+'</span><span class="rm">'+esc(w.ja)+'</span><span class="tiny">'+esc(w.ipa)+'</span></button>';
     }).join('');
+    [].forEach.call(host.querySelectorAll('[data-ring-id]'),function(b){
+      b.addEventListener('click',function(e){ e.stopPropagation(); openWordSheet(b.dataset.ringId); });
+    });
     return;
   }
   $('ringStage').style.height='300px';
@@ -1674,7 +1793,10 @@ function ringSnap(){
 }
 (function bindRing(){
   var stage=$('ringStage'), st=null;
-  stage.addEventListener('pointerdown', function(e){ st={x:e.clientX, r:ring.rot, moved:false}; });
+  stage.addEventListener('pointerdown', function(e){
+    if(e.target.closest && e.target.closest('[data-ring-id]')) return;
+    st={x:e.clientX, r:ring.rot, moved:false};
+  });
   stage.addEventListener('pointermove', function(e){
     if(!st) return;
     var dx=e.clientX-st.x;
@@ -1704,16 +1826,36 @@ $('searchInput').addEventListener('input', function(){ book.q=this.value; render
    13. ボトムシート（詳細）/ モーダル
    --------------------------------------------------------------- */
 function openOverlay(ov){
+  clearTimeout(ov._closeTimer);
+  if(ov.hidden) ov._returnFocus=document.activeElement;
   ov.hidden=false;
+  var f=ov.querySelector('button:not([disabled]),a[href],input:not([disabled]),[tabindex]:not([tabindex="-1"])');
+  if(f) f.focus();
   requestAnimationFrame(function(){ ov.classList.add('show'); });
 }
 function closeOverlay(ov){
   ov.classList.remove('show');
-  setTimeout(function(){ ov.hidden=true; }, 320);
+  clearTimeout(ov._closeTimer);
+  ov._closeTimer=setTimeout(function(){
+    ov.hidden=true;
+    var back=ov._returnFocus; ov._returnFocus=null;
+    if(back && document.contains(back)) back.focus();
+  }, 320);
 }
 [$('sheetOv'), $('modalOv')].forEach(function(ov){
   ov.addEventListener('click', function(e){
     if(e.target.dataset && e.target.dataset.close) closeOverlay(ov);
+  });
+  ov.addEventListener('keydown',function(e){
+    if(e.key==='Escape'){ e.preventDefault(); closeOverlay(ov); return; }
+    if(e.key!=='Tab') return;
+    var list=[].filter.call(ov.querySelectorAll('button:not([disabled]),a[href],input:not([disabled]),[tabindex]:not([tabindex="-1"])'),function(x){
+      return x.offsetParent!==null;
+    });
+    if(!list.length){ e.preventDefault(); return; }
+    var first=list[0], last=list[list.length-1];
+    if(e.shiftKey && document.activeElement===first){ e.preventDefault(); last.focus(); }
+    else if(!e.shiftKey && document.activeElement===last){ e.preventDefault(); first.focus(); }
   });
 });
 function openWordSheet(id){
@@ -1829,7 +1971,7 @@ function openSettings(){
   });
   [].forEach.call($('modalBody').querySelectorAll('[data-goal]'), function(b){
     b.addEventListener('click', function(){
-      S.daily.goal=Number(b.dataset.goal); S.daily.bonus=false; save();
+      S.daily.goal=Number(b.dataset.goal); save();
       [].forEach.call($('modalBody').querySelectorAll('[data-goal]'), function(x){ x.setAttribute('aria-pressed', String(x===b)); });
       renderHome(); haptic(HAP.tap);
     });
@@ -1839,8 +1981,8 @@ function openSettings(){
       '<div class="btn-row"><button class="btn btn-sm glass" data-close="1">やめる</button>'+
       '<button class="btn btn-sm glass" id="doReset" style="color:var(--ng)">初期化する</button></div>');
     $('doReset').addEventListener('click', function(){
-      try{ localStorage.removeItem(KEY); }catch(e){}
-      S=clone(DEF); ensureDay(); combo=0;
+      var keepDlc=clone(S.dlc||DEF.dlc);
+      S=clone(DEF); S.dlc=keepDlc; S.daily.day=dayKey(); combo=0; save(true);
       applyMotionClass(); renderTop(); renderHome(); renderStats(); renderBook();
       closeOverlay($('modalOv'));
       toast('初期化しました','leaf');
@@ -1931,20 +2073,12 @@ if(S.settings.gyro) bindGyro();
 })();
 
 /* ---------------------------------------------------------------
-   17. 入力の細かな抑止（ダブルタップズーム等）
-   --------------------------------------------------------------- */
-/* ピンチズームを抑止（ダブルタップズームは touch-action:manipulation で無効化済み） */
-document.addEventListener('gesturestart', function(e){ e.preventDefault(); });
-document.addEventListener('gesturechange', function(e){ e.preventDefault(); });
-document.addEventListener('dblclick', function(e){ e.preventDefault(); });
-
-/* ---------------------------------------------------------------
    18. 起動
    --------------------------------------------------------------- */
 $('goStudy').addEventListener('click', function(){ showView('study'); if(!sess) endSessionToMenu(); });
-$('goWeak').addEventListener('click', function(){ startSession({mode:'mix', levels:['beginner','intermediate','advanced'], n:cfg.n, weak:true}); });
+$('goWeak').addEventListener('click', function(){ startSession({mode:'mix', levels:Object.keys(LV_JA), n:cfg.n, weak:true}); });
 $('startBtn').addEventListener('click', function(){ startSession({}); });
-$('weakBtn').addEventListener('click', function(){ startSession({mode:'mix', levels:['beginner','intermediate','advanced'], n:cfg.n, weak:true}); });
+$('weakBtn').addEventListener('click', function(){ startSession({mode:'mix', levels:Object.keys(LV_JA), n:cfg.n, weak:true}); });
 
 applyMotionClass();
 renderTop(); renderHome(); renderMenu(); renderBook(); renderStats();

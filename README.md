@@ -113,7 +113,7 @@ Pro版ホームの2枚目のストアカード、または学習メニューの 
 - **設問**: 小問ごとの4択、判定（`:has()` で選択肢グループを着色）、`<dialog>` のボトムシートで解説／文法／語彙
 - **結果**: 100点満点の得点・**レーダーチャート**（出題タイプ別の正答率）・間違えた小問だけの復習リトライ
 - **語彙シート**: 65語の一覧（長文別）／**文法ポイント**: 22項目のアコーディオン
-- **設定**: 解答の即時判定、訳の初期表示、このキットのデータのみ初期化（本編には影響しません）
+- **設定**: 目安タイマー、訳の初期表示、触覚、動きを減らす、文字サイズ、このキットのデータのみ初期化（本編には影響しません）
 
 ### 専用の最新UI（Ink & Paper）
 Liquid Glass の本編とは意図的に**別デザイン**にしています（試験の紙面＋現代的なUI）。
@@ -153,7 +153,7 @@ Word Plus と同じ購入エンジンを共有しており、**実在の決済�
 - タップ領域は最小48×48px、`:hover` は装飾の保険のみ
 - ジェスチャー: 左スワイプ=わからない / 右スワイプ=わかる（指に追従して移動・傾き、離すと飛んでいく）/ 上スワイプ=詳細ボトムシート / タップ=3Dフリップ
 - Vibration API による触覚フィードバック（正解・不正解・スワイプ確定・レベルアップ / 設定でOFF）
-- `overscroll-behavior:none`、`touch-action:manipulation`、`gesturestart/gesturechange` 抑止でズーム・引っ張って更新を無効化
+- `overscroll-behavior:none` と `touch-action:manipulation` で引っ張って更新や誤操作を抑止しつつ、利用者のピンチズームは利用可能
 - 入力欄は16px以上（iOSの自動ズーム防止）、`inputmode` / `autocapitalize="off"` / `autocorrect="off"` 指定
 - PWA: manifestをインラインdata URIで動的生成（standalone / portrait / theme-color / SVGアイコン）
 - 下部固定のガラス製タブバー（ホーム／学習／単語帳／実績）
@@ -226,7 +226,7 @@ Word Plus と同じ購入エンジンを共有しており、**実在の決済�
 
 - `__ek.state()` — 保存データ（`gvexam.v1`）の現在値
 - `__ek.grant()` — ローカルで解錠（検証用）
-- `__ek.open('e1'|'e2'|'e3')` / `__ek.nav('top'|'read'|'quiz'|'result'|'vocab'|'gram')` / `__ek.quiz(no)` / `__ek.answerAll()` / `__ek.result()` / `__ek.reset()`
+- `__ek.open('e1'|'e2'|'e3')` / `__ek.nav('top'|'read'|'quiz'|'result'|'vocab'|'gram')` / `__ek.quiz(pid, index)` / `__ek.answerAll(pid, allCorrect)` / `__ek.result(pid|'kit')` / `__ek.reset()`
 
 ---
 
@@ -258,7 +258,7 @@ var PASSAGES = [{
 {
   xp: 0,                       // 累計XP（レベルは累計XPから算出）
   records: {                   // 単語ごとの間隔反復記録
-    "b01": { s:'new'|'learning'|'mastered', e:2.5, i:0, due:0, reps:0, wrong:0, seen:0, m30:0 }
+    "b01": { s:'new'|'learning'|'mastered', e:2.5, i:0, due:0, reps:0, wrong:0, seen:0, m30:0, updatedAt:0 }
   },
   history: { "2026-07-30": 120 },        // 日別獲得XP（週間グラフ用）
   streak: 0, lastDay: "2026-07-30",      // 連続学習日数
@@ -301,11 +301,16 @@ window.EXAM_KIT = {
 ```js
 {
   owned:false, order:null, at:0, price:560,     // 購入権利（Pro版のストアがここに書き込む）
-  ans:  { "q1": { pick:2, ok:true, at:1785392644426 } },   // 小問ごとの解答
-  seen: { "e1": true },                                   // 読了した長文
-  best: { "e1": { score:24, total:24, at:0 } },            // 長文別の最高得点
-  last: { pid:'e1', no:3 },                                // 続きから再開
-  settings: { instant:true, showJa:false, haptics:true }
+  progress: {
+    "e1": {
+      ans:{ "q1": { p:2, ok:true, at:1785392644426 } },
+      done:false, score:4, at:0, tries:0
+    }
+  },
+  marks: { "q1":true },                    // 見直しマーク
+  known: { "workshop":true },              // 語彙シートの「覚えた」
+  settings: { timer:false, autoTrans:false, fs:1, reduceMotion:false, haptics:true },
+  stats: { attempts:0, best:0, lastAt:0 }
 }
 ```
 - **XP・レベル・ストリーク・バッジ・SRSは一切含まず**、本編（`glassvocab.v1`）とは読み書きしません。

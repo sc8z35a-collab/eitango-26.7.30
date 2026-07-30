@@ -18,11 +18,13 @@
       .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
   }
   function clone(o){ return JSON.parse(JSON.stringify(o)); }
+  function isObj(v){ return !!v && typeof v==='object' && !Array.isArray(v); }
   function merge(base, add){
     var out = clone(base), k;
     for(k in add){
       if(!Object.prototype.hasOwnProperty.call(add,k)) continue;
-      if(add[k] && typeof add[k]==='object' && !Array.isArray(add[k]) && out[k] && typeof out[k]==='object'){
+      if(k==='__proto__' || k==='prototype' || k==='constructor') continue;
+      if(isObj(add[k]) && isObj(out[k])){
         out[k] = merge(out[k], add[k]);
       }else if(add[k]!==undefined && add[k]!==null){
         out[k] = add[k];
@@ -42,15 +44,90 @@
     settings:{ timer:false, autoTrans:false, fs:1, reduceMotion:false, haptics:true },
     stats:{ attempts:0, best:0, lastAt:0 }
   };
-  var S = clone(DEF);
-  function load(){
-    try{
-      var raw = localStorage.getItem(KEY);
-      if(raw) S = merge(DEF, JSON.parse(raw) || {});
-    }catch(e){ S = clone(DEF); }
+  function finite(v,fallback,min,max){
+    v=Number(v);
+    if(!Number.isFinite(v)) return fallback;
+    if(min!==undefined) v=Math.max(min,v);
+    if(max!==undefined) v=Math.min(max,v);
+    return v;
   }
-  function save(){
-    try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){}
+  function normalize(src){
+    var o=merge(DEF,isObj(src)?src:{});
+    o.owned=!!o.owned;
+    o.order=typeof o.order==='string'?o.order:null;
+    o.at=finite(o.at,0,0); o.price=finite(o.price,DEF.price,0);
+    ['progress','marks','known','settings','stats'].forEach(function(k){ if(!isObj(o[k])) o[k]=clone(DEF[k]); });
+    Object.keys(o.progress).forEach(function(pid){
+      var p=o.progress[pid];
+      if(!isObj(p)){ delete o.progress[pid]; return; }
+      if(!isObj(p.ans)) p.ans={};
+      Object.keys(p.ans).forEach(function(id){
+        var a=p.ans[id];
+        if(!isObj(a)){ delete p.ans[id]; return; }
+        a.p=finite(a.p,-1,-1,20); a.ok=!!a.ok; a.at=finite(a.at,0,0);
+      });
+      p.done=!!p.done; p.score=finite(p.score,0,0); p.at=finite(p.at,0,0); p.tries=finite(p.tries,0,0);
+    });
+    Object.keys(o.marks).forEach(function(k){ if(!o.marks[k]) delete o.marks[k]; else o.marks[k]=true; });
+    Object.keys(o.known).forEach(function(k){ if(!o.known[k]) delete o.known[k]; else o.known[k]=true; });
+    ['timer','autoTrans','reduceMotion','haptics'].forEach(function(k){ o.settings[k]=!!o.settings[k]; });
+    o.settings.fs=finite(o.settings.fs,1,.9,1.25);
+    o.stats.attempts=finite(o.stats.attempts,0,0);
+    o.stats.best=finite(o.stats.best,0,0);
+    o.stats.lastAt=finite(o.stats.lastAt,0,0);
+    return o;
+  }
+  function readStored(){
+    try{ var raw=localStorage.getItem(KEY); return raw?normalize(JSON.parse(raw)):clone(DEF); }
+    catch(e){ return clone(DEF); }
+  }
+  function same(a,b){ try{return JSON.stringify(a)===JSON.stringify(b);}catch(e){return false;} }
+  function changedMap(latest,current,base){
+    var out=clone(isObj(latest)?latest:{});
+    Object.keys(isObj(base)?base:{}).forEach(function(k){
+      if(!Object.prototype.hasOwnProperty.call(current,k)) delete out[k];
+    });
+    Object.keys(isObj(current)?current:{}).forEach(function(k){
+      if(!Object.prototype.hasOwnProperty.call(base,k) || !same(current[k],base[k])) out[k]=clone(current[k]);
+    });
+    return out;
+  }
+  function combine(latest,current,base){
+    latest=normalize(latest); current=normalize(current); base=normalize(base);
+    var out=clone(current);
+    out.owned=latest.owned||current.owned;
+    if(!out.order && latest.order){ out.order=latest.order; out.at=latest.at; out.price=latest.price; }
+    Object.keys(latest.progress).forEach(function(pid){
+      if(!out.progress[pid]){ out.progress[pid]=clone(latest.progress[pid]); return; }
+      var la=latest.progress[pid].ans||{}, ca=out.progress[pid].ans||{};
+      Object.keys(la).forEach(function(id){
+        if(!ca[id] || finite(la[id].at,0)>finite(ca[id].at,0)) ca[id]=clone(la[id]);
+      });
+      out.progress[pid].ans=ca;
+      out.progress[pid].done=out.progress[pid].done||latest.progress[pid].done;
+      out.progress[pid].tries=Math.max(out.progress[pid].tries||0,latest.progress[pid].tries||0);
+      out.progress[pid].at=Math.max(out.progress[pid].at||0,latest.progress[pid].at||0);
+    });
+    out.marks=changedMap(latest.marks,current.marks,base.marks);
+    out.known=changedMap(latest.known,current.known,base.known);
+    if(same(current.settings,base.settings)) out.settings=clone(latest.settings);
+    out.stats.attempts=Math.max(latest.stats.attempts,current.stats.attempts);
+    out.stats.best=Math.max(latest.stats.best,current.stats.best);
+    out.stats.lastAt=Math.max(latest.stats.lastAt,current.stats.lastAt);
+    out._rev=Math.max(finite(latest._rev,0),finite(current._rev,0))+1;
+    return normalize(out);
+  }
+  var S = readStored(), BASE=clone(S), storageOK=true;
+  function load(){
+    S=readStored(); BASE=clone(S);
+  }
+  function save(replace){
+    try{
+      S=replace?normalize(S):combine(readStored(),S,BASE);
+      localStorage.setItem(KEY,JSON.stringify(S));
+      if(!JSON.parse(localStorage.getItem(KEY)||'null')) throw new Error('保存内容を確認できません');
+      BASE=clone(S); storageOK=true; return true;
+    }catch(e){ storageOK=false; return false; }
   }
 
   /* ---------------------------------------------------------------
@@ -180,12 +257,17 @@
   var view = 'top';
   function swap(fn){
     if(document.startViewTransition && motionOK()){
-      try{ document.startViewTransition(fn); return; }catch(e){}
+      try{
+        var transition=document.startViewTransition(fn);
+        if(transition.finished && transition.finished.catch) transition.finished.catch(function(){});
+        return;
+      }catch(e){}
     }
     fn();
   }
   function nav(v, arg){
     swap(function(){
+      if(v!=='read' && v!=='quiz') stopTimer();
       view = v;
       VIEWS.forEach(function(x){ var el=$('v-'+x); if(el) el.hidden = (x!==v); });
       if(v==='top') renderTop();
@@ -202,7 +284,7 @@
   /* ---------------------------------------------------------------
      6. ヘッダー（レール・タイマー）
      --------------------------------------------------------------- */
-  var cur = { pid:null, i:0, only:null };   /* only: 復習対象のitem id配列 */
+  var cur = { pid:null, i:0, only:null, review:null, reviewIndex:0, reviewScope:null };
   var timer = { on:false, left:0, iv:null };
 
   function renderBar(){
@@ -280,7 +362,7 @@
      7. トップ（キット表紙）
      --------------------------------------------------------------- */
   function renderTop(){
-    cur.pid = null; cur.only = null; stopTimer();
+    cur.pid = null; cur.only = null; cur.review=null; cur.reviewScope=null; stopTimer();
     var sc = kitScore(), ans = kitAnswered();
     var pct = TOTAL_PT ? Math.round(sc/TOTAL_PT*100) : 0;
 
@@ -367,7 +449,7 @@
      8. 本文（読解）
      --------------------------------------------------------------- */
   function openPassage(pid){
-    cur.pid = pid; cur.i = 0; cur.only = null;
+    cur.pid = pid; cur.i = 0; cur.only = null; cur.review=null; cur.reviewScope=null;
     startTimer(P_BY_ID[pid].mins);
     nav('read', pid);
   }
@@ -384,7 +466,7 @@
       '</div>';
 
     p.paras.forEach(function(pp,i){
-      html += '<div class="para'+(S.settings.autoTrans?' open':'')+'" data-i="'+i+'">'+
+      html += '<div class="para'+(S.settings.autoTrans?' open':'')+'" data-i="'+i+'" role="button" tabindex="0" aria-expanded="'+!!S.settings.autoTrans+'">'+
         '<span class="n">'+(i+1)+'</span>'+
         '<p class="en">'+esc(pp.en)+'</p>'+
         '<p class="ja">'+esc(pp.ja)+'</p>'+
@@ -400,8 +482,12 @@
     [].forEach.call($('v-read').querySelectorAll('.para'), function(el){
       el.addEventListener('click', function(){
         el.classList.toggle('open');
+        el.setAttribute('aria-expanded',String(el.classList.contains('open')));
         el.querySelector('.cue').textContent = 'タップで日本語訳を' + (el.classList.contains('open')?'隠す':'表示');
         haptic(6);
+      });
+      el.addEventListener('keydown',function(e){
+        if(e.key==='Enter'||e.key===' '){ e.preventDefault(); el.click(); }
       });
     });
 
@@ -423,6 +509,7 @@
       var open = $('v-read').querySelectorAll('.para.open').length < p.paras.length;
       [].forEach.call($('v-read').querySelectorAll('.para'), function(el){
         el.classList.toggle('open', open);
+        el.setAttribute('aria-expanded',String(open));
         el.querySelector('.cue').textContent = 'タップで日本語訳を' + (open?'隠す':'表示');
       });
       haptic(6);
@@ -463,7 +550,7 @@
     var fld = K.fields[r.field] || {n:''};
 
     /* 同じ問（大問）の小問タブ */
-    var sibs = FLAT[cur.pid].filter(function(x){ return x.q === q; });
+    var sibs = list.filter(function(x){ return x.q === q; });
     var subnav = sibs.length>1 ? '<div class="subnav">'+ sibs.map(function(x){
         var done = pr.ans[x.it.id];
         return '<button data-go="'+x.it.id+'" aria-current="'+(x.it.id===it.id)+'" class="'+(done?'done':'')+'">'+
@@ -570,7 +657,16 @@
     $('qExp').addEventListener('click', function(){ if(pr.ans[it.id]) openExp(); });
     $('qNext').addEventListener('click', function(){
       if(!answered){ nav('read', cur.pid); return; }
-      if(last){ nav('result', cur.pid); return; }
+      if(last){
+        if(cur.review && cur.reviewIndex<cur.review.length-1){
+          cur.reviewIndex++;
+          cur.pid=cur.review[cur.reviewIndex].pid;
+          cur.only=cur.review[cur.reviewIndex].ids;
+          cur.i=0; nav('quiz'); return;
+        }
+        var scope=cur.reviewScope||cur.pid;
+        cur.review=null; cur.reviewScope=null; nav('result',scope); return;
+      }
       cur.i++; renderQuiz(); renderBar();
       $('stage').scrollTop = 0;
     });
@@ -653,7 +749,16 @@
     $('expRead').addEventListener('click', function(){ closeSheet(); nav('read', cur.pid); });
     $('expNext').addEventListener('click', function(){
       closeSheet();
-      if(cur.i>=list.length-1){ nav('result', cur.pid); return; }
+      if(cur.i>=list.length-1){
+        if(cur.review && cur.reviewIndex<cur.review.length-1){
+          cur.reviewIndex++;
+          cur.pid=cur.review[cur.reviewIndex].pid;
+          cur.only=cur.review[cur.reviewIndex].ids;
+          cur.i=0; nav('quiz'); return;
+        }
+        var scope=cur.reviewScope||cur.pid;
+        cur.review=null; cur.reviewScope=null; nav('result',scope); return;
+      }
       cur.i++; renderQuiz(); renderBar(); $('stage').scrollTop=0;
     });
   }
@@ -741,7 +846,7 @@
     [].forEach.call($('v-result').querySelectorAll('[data-w]'), function(b){
       b.addEventListener('click', function(){
         var rec = ITEMS[b.dataset.w];
-        cur.pid = rec.p.id; cur.only = null;
+        cur.pid = rec.p.id; cur.only = null; cur.review=null; cur.reviewScope=null;
         var list = FLAT[cur.pid], idx = 0;
         list.forEach(function(x,i){ if(x.it.id===rec.it.id) idx=i; });
         cur.i = idx; nav('quiz');
@@ -758,20 +863,28 @@
     $('rsTop').addEventListener('click', function(){ nav('top'); });
     $('rsWrong').addEventListener('click', function(){
       if(!wrong.length) return;
-      var pid = wrong[0].p.id;
-      cur.pid = pid;
-      cur.only = wrong.filter(function(r){ return r.p.id===pid; }).map(function(r){ return r.it.id; });
-      /* 復習は解答を消してから */
-      var pr = prog(pid);
-      cur.only.forEach(function(id){ delete pr.ans[id]; });
-      pr.done = false; save();
+      var groups=[];
+      wrong.forEach(function(r){
+        var g=null;
+        groups.forEach(function(x){ if(x.pid===r.p.id) g=x; });
+        if(!g){ g={pid:r.p.id,ids:[]}; groups.push(g); }
+        g.ids.push(r.it.id);
+      });
+      groups.forEach(function(g){
+        var pr=prog(g.pid);
+        g.ids.forEach(function(id){ delete pr.ans[id]; });
+        pr.done=false;
+      });
+      save(true);
+      cur.review=groups; cur.reviewIndex=0; cur.reviewScope=isKit?'kit':pids[0];
+      cur.pid=groups[0].pid; cur.only=groups[0].ids;
       cur.i = 0; nav('quiz');
-      toast('誤答'+cur.only.length+'問だけを出題します','flag');
+      toast('誤答・未解答'+wrong.length+'問だけを出題します','flag');
     });
     $('rsRetry').addEventListener('click', function(){
       openConfirm('解答を消してやり直しますか？', 'この'+(isKit?'キット全体':'長文')+'の解答記録が消えます。語彙シートの「覚えた」と見直しマークは残ります。', function(){
         pids.forEach(function(pid){ S.progress[pid] = { ans:{}, done:false, score:0, at:0, tries:prog(pid).tries||0 }; });
-        save(); cur.only = null;
+        save(true); cur.only = null; cur.review=null; cur.reviewScope=null;
         if(isKit){ nav('top'); } else { openPassage(pids[0]); }
         toast('解答をリセットしました','reset');
       });
@@ -836,7 +949,7 @@
     $('v-vocab').innerHTML =
       '<div class="h-lead">VOCABULARY SHEET</div>'+
       '<h1 class="h">語彙シート（'+all.length+'語）</h1>'+
-      '<p class="sub">解説に登場した語をすべて集めました。覚えた語はタップで印をつけられます（'+knownN+'/'+all.length+'）。</p>'+
+      '<p class="sub">解説に登場した語をすべて集めました。覚えた語はタップで印をつけられます（<span id="knownCount">'+knownN+'</span>/'+all.length+'）。</p>'+
       '<div class="search">'+icon('search')+
         '<input id="vq" type="search" inputmode="search" autocapitalize="none" autocomplete="off" '+
         'placeholder="英語または日本語で検索" value="'+esc(vq)+'" aria-label="語彙を検索">'+
@@ -844,7 +957,7 @@
       '<div class="vlist" id="vlist">'+
         (list.length? list.map(function(v){
           var kn = !!S.known[v.w.toLowerCase()];
-          return '<div class="vrow'+(kn?' known':'')+'" data-w="'+esc(v.w)+'">'+
+          return '<div class="vrow'+(kn?' known':'')+'" data-w="'+esc(v.w)+'" role="button" tabindex="0" aria-pressed="'+kn+'">'+
             '<span class="w">'+esc(v.w)+'</span>'+
             (v.ipa? '<span class="ipa">'+esc(v.ipa)+'</span>':'<span></span>')+
             '<button class="spk" data-say="'+esc(v.w)+'" aria-label="読み上げ">'+icon('speak')+'</button>'+
@@ -862,11 +975,22 @@
       try{ ni.setSelectionRange(pos,pos); }catch(e){}
     });
     [].forEach.call($('vlist').querySelectorAll('.vrow'), function(row){
-      row.addEventListener('click', function(e){
-        if(e.target.closest('[data-say]')) return;
+      function toggle(){
         var w = row.dataset.w.toLowerCase();
         if(S.known[w]) delete S.known[w]; else S.known[w] = true;
-        save(); row.classList.toggle('known', !!S.known[w]); haptic(6);
+        save();
+        row.classList.toggle('known', !!S.known[w]);
+        row.setAttribute('aria-pressed',String(!!S.known[w]));
+        var count=$('knownCount');
+        if(count) count.textContent=all.filter(function(v){ return S.known[v.w.toLowerCase()]; }).length;
+        haptic(6);
+      }
+      row.addEventListener('click', function(e){
+        if(e.target.closest('[data-say]')) return;
+        toggle();
+      });
+      row.addEventListener('keydown',function(e){
+        if((e.key==='Enter'||e.key===' ') && !e.target.closest('[data-say]')){ e.preventDefault(); toggle(); }
       });
     });
     [].forEach.call($('vlist').querySelectorAll('[data-say]'), function(b){
@@ -997,8 +1121,8 @@
     $('setClose').addEventListener('click', closeSheet);
     $('setReset').addEventListener('click', function(){
       openConfirm('解答をすべて消しますか？','3本すべての解答・採点結果が消えます。購入内容と語彙シートの「覚えた」は残ります。', function(){
-        S.progress = {}; S.marks = {}; S.stats.attempts = 0; save();
-        cur.only = null; nav('top'); toast('解答をすべて消しました','reset');
+        S.progress = {}; S.marks = {}; S.stats = {attempts:0,best:0,lastAt:0}; save(true);
+        cur.only = null; cur.review=null; cur.reviewScope=null; nav('top'); toast('解答をすべて消しました','reset');
       });
     });
   }
@@ -1045,10 +1169,6 @@
     nav('top');
   }
 
-  /* 入力系の抑制（ダブルタップ拡大・ピンチ） */
-  document.addEventListener('gesturestart', function(e){ e.preventDefault(); });
-  document.addEventListener('gesturechange', function(e){ e.preventDefault(); });
-
   /* dialog の背景タップで閉じる */
   (function(){
     var dlg = $('sheet');
@@ -1060,6 +1180,17 @@
   })();
 
   load();
+  window.addEventListener('storage',function(e){
+    if(e.key!==KEY || !e.newValue) return;
+    try{
+      S=normalize(JSON.parse(e.newValue)); BASE=clone(S);
+      if(S.owned && $('shell').hidden){ boot(); return; }
+      if(!S.owned){ renderLock(); return; }
+      if(view==='top') renderTop();
+      else if(view==='quiz') renderQuiz();
+      else renderBar();
+    }catch(err){}
+  });
   applyMotion();
   if(S.owned) boot(); else renderLock();
 
@@ -1082,6 +1213,10 @@
       save();
     },
     result: function(scope){ cur.pid = scope==='kit'? K.passages[0].id : scope; nav('result', scope); },
-    reset: function(){ S = clone(DEF); save(); location.reload(); }
+    reset: function(){
+      var keep={owned:S.owned,order:S.order,at:S.at,price:S.price,known:clone(S.known),settings:clone(S.settings)};
+      S=clone(DEF); S.owned=keep.owned; S.order=keep.order; S.at=keep.at; S.price=keep.price;
+      S.known=keep.known; S.settings=keep.settings; save(true); location.reload();
+    }
   };
 })();
