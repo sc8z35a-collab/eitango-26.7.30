@@ -1,0 +1,3316 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<!-- ノッチ/ホームバー回避のため viewport-fit=cover、iOSの自動ズーム抑止のため user-scalable=no -->
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#EDEFF2" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1B1E24" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Glass Vocab Pro">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="format-detection" content="telephone=no">
+<meta name="description" content="高精細リキッドグラスと3Dカードデッキ、微細アニメーションで学ぶスマホ専用英単語アプリ Pro版。">
+<title>Glass Vocab Pro — 英単語学習</title>
+<style>
+/* =========================================================
+   0. デザイントークン（彩度を抑えた自然色。ネオン・発光色は不使用）
+   ========================================================= */
+:root{
+  --page:#DCDAD5;
+  --bg-1:#F4F2EE; --bg-2:#EDEFF2;
+  --ink:#23272E; --ink-2:#4B525C; --ink-3:#6C7482;
+  --accent:#4A6FA5; --accent-ink:#2F4C74;
+  --sage:#7C9A8E; --terra:#C08457;
+  --ok:#4F7D5F; --ok-soft:rgba(79,125,95,.16);
+  --ng:#AE6A47; --ng-soft:rgba(174,106,71,.16);
+
+  /* リキッドグラス3層：イルミネーション(透過) / ハイライト(縁の光) / シャドウ(浮遊) */
+  --glass-bg:rgba(255,255,255,.46);
+  --glass-solid:#FBFAF8;               /* 透明度低減・非対応時のフォールバック */
+  --glass-brd:rgba(255,255,255,.62);
+  --glass-hi:rgba(255,255,255,.90);
+  --glass-lo:rgba(35,39,46,.10);
+  --gloss:rgba(255,255,255,.55);
+  --edge:rgba(206,201,193,.85);         /* カードの厚み（側面）色 */
+  --plate:rgba(255,255,255,.72);        /* 文字の可読性を担保する不透明レイヤー */
+  --line:rgba(35,39,46,.12);
+  --shadow:0 22px 44px rgba(35,39,46,.16), 0 6px 14px rgba(35,39,46,.10);
+  --shadow-sm:0 10px 20px rgba(35,39,46,.12);
+
+  --blob-1:#A9BCD6; --blob-2:#B7CCC2; --blob-3:#DCC3A8;
+  --tab-h:64px;
+  --r-lg:30px; --r-md:24px; --r-sm:18px;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --page:#12151A;
+    --bg-1:#1B1E24; --bg-2:#242830;
+    --ink:#ECEFF3; --ink-2:#C3C9D2; --ink-3:#9AA3AF;
+    --accent:#87A4CC; --accent-ink:#A8BEDC;
+    --sage:#93B0A4; --terra:#CE9C74;
+    --ok:#7FA98B; --ok-soft:rgba(127,169,139,.18);
+    --ng:#C9906A; --ng-soft:rgba(201,144,106,.18);
+
+    --glass-bg:rgba(255,255,255,.11);
+    --glass-solid:#2A2F38;
+    --glass-brd:rgba(255,255,255,.24);
+    --glass-hi:rgba(255,255,255,.34);
+    --glass-lo:rgba(0,0,0,.34);
+    --gloss:rgba(255,255,255,.22);
+    --edge:rgba(74,80,92,.9);
+    --plate:rgba(24,27,33,.62);
+    --line:rgba(255,255,255,.14);
+    --shadow:0 24px 48px rgba(0,0,0,.46), 0 6px 16px rgba(0,0,0,.34);
+    --shadow-sm:0 10px 22px rgba(0,0,0,.38);
+    --blob-1:#2E3A4C; --blob-2:#2B3A35; --blob-3:#3F342B;
+  }
+}
+
+/* =========================================================
+   1. ベース
+   ========================================================= */
+*,*::before,*::after{box-sizing:border-box}
+html,body{height:100%;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{
+  background:var(--page);
+  color:var(--ink);
+  font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Hiragino Kaku Gothic ProN","Noto Sans JP","Yu Gothic",sans-serif;
+  font-size:16px; line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+  /* 引っ張って更新・ダブルタップズームの抑止 */
+  overscroll-behavior:none;
+  touch-action:manipulation;
+  -webkit-tap-highlight-color:transparent;
+  display:flex; align-items:center; justify-content:center;
+  min-height:100dvh;
+}
+/* 375〜430px を基準にしたモバイル枠。広い画面では中央に枠として表示 */
+#app{
+  position:relative;
+  width:min(100%,430px);
+  height:100dvh;
+  overflow:hidden;
+  background:
+    radial-gradient(120% 90% at 50% 0%, var(--bg-1) 0%, var(--bg-2) 60%, var(--bg-2) 100%);
+  display:flex; flex-direction:column;
+  /* ルートに透視投影：以降の 3D はすべてこの空間で行う */
+  perspective:1200px;
+  transform-style:preserve-3d;
+  isolation:isolate;
+}
+@media (min-width:520px){
+  #app{height:min(100dvh,880px); border-radius:38px; box-shadow:0 40px 90px rgba(0,0,0,.28), 0 0 0 1px rgba(0,0,0,.06);}
+}
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
+input{font-family:inherit}
+:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+.sr{position:absolute!important;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* =========================================================
+   2. 背景：ゆっくり動く有機的なブロブ（SVGフィルタで屈折感）
+   ========================================================= */
+.bg{position:absolute;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+.blobs{position:absolute;inset:-12%;filter:blur(38px) url(#liquid);opacity:.9}
+.blob{position:absolute;display:block;border-radius:50%;will-change:transform}
+.b1{width:60%;aspect-ratio:1;left:-12%;top:4%;background:var(--blob-1);opacity:.62;animation:drift1 34s ease-in-out infinite alternate}
+.b2{width:66%;aspect-ratio:1;right:-18%;top:26%;background:var(--blob-2);opacity:.55;animation:drift2 44s ease-in-out infinite alternate}
+.b3{width:56%;aspect-ratio:1;left:6%;bottom:-8%;background:var(--blob-3);opacity:.5;animation:drift3 52s ease-in-out infinite alternate}
+@keyframes drift1{from{transform:translate3d(0,0,0) scale(1)}to{transform:translate3d(14%,10%,0) scale(1.14)}}
+@keyframes drift2{from{transform:translate3d(0,0,0) scale(1.06)}to{transform:translate3d(-16%,-8%,0) scale(.94)}}
+@keyframes drift3{from{transform:translate3d(0,0,0) scale(.96)}to{transform:translate3d(10%,-12%,0) scale(1.12)}}
+.svgdefs{position:absolute;width:0;height:0;overflow:hidden}
+
+/* =========================================================
+   3. リキッドグラス材質（ガラスの上にガラスは重ねない）
+   ========================================================= */
+.glass{
+  position:relative;
+  background:var(--glass-bg);
+  -webkit-backdrop-filter:blur(20px) saturate(140%);
+  backdrop-filter:blur(20px) saturate(140%);
+  border:1px solid var(--glass-brd);
+  border-radius:var(--r-md);
+  box-shadow:
+    var(--shadow),
+    inset 0 1px 0 var(--glass-hi),      /* 上辺の光 */
+    inset 0 -1px 0 var(--glass-lo);     /* 下辺の陰 */
+}
+/* 縁を走る光沢。ジャイロで位置がわずかに動く */
+.glass::before{
+  content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+  background:radial-gradient(88% 62% at var(--gx,26%) var(--gy,2%), var(--gloss) 0%, rgba(255,255,255,0) 62%);
+  opacity:.85;
+}
+@supports not ((backdrop-filter:blur(4px)) or (-webkit-backdrop-filter:blur(4px))){
+  .glass{background:var(--glass-solid)}
+}
+@media (prefers-reduced-transparency: reduce){
+  .glass{background:var(--glass-solid);-webkit-backdrop-filter:none;backdrop-filter:none}
+  .glass::before{opacity:.25}
+  .blobs{opacity:.35}
+}
+
+/* =========================================================
+   4. 上部：情報表示のみ（操作は置かない）
+   ========================================================= */
+.topbar{
+  position:relative;z-index:3;flex:0 0 auto;
+  padding:calc(env(safe-area-inset-top,0px) + 10px) 16px 8px;
+  display:flex;align-items:center;gap:8px;
+}
+.lvl-chip{display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:20px;flex:1 1 auto;min-width:0}
+.lvl-num{font-weight:700;font-size:.94rem;letter-spacing:.02em;white-space:nowrap}
+.xpbar{position:relative;flex:1 1 auto;height:8px;border-radius:99px;background:var(--plate);overflow:hidden;min-width:40px}
+.xpbar i{position:absolute;inset:0 auto 0 0;width:0;background:linear-gradient(90deg,var(--accent),var(--sage));border-radius:99px;transition:width .5s cubic-bezier(.2,.8,.2,1)}
+.xptext{font-size:.72rem;color:var(--ink-2);font-variant-numeric:tabular-nums;white-space:nowrap}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:8px 11px;border-radius:18px;font-size:.8rem;font-weight:600;white-space:nowrap}
+.chip svg{width:16px;height:16px;flex:0 0 auto}
+#comboBadge{opacity:0;transform:scale(.86);transition:opacity .25s,transform .25s}
+#comboBadge.on{opacity:1;transform:scale(1)}
+
+/* =========================================================
+   5. ビュー / タブバー
+   ========================================================= */
+.main{position:relative;z-index:2;flex:1 1 auto;min-height:0}
+.view{position:absolute;inset:0;display:none;flex-direction:column;min-height:0}
+.view.active{display:flex}
+.scroll{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:4px 16px 12px}
+/* サムゾーン（画面下1/3）に置く操作エリア */
+.actions{flex:0 0 auto;padding:10px 16px 12px;display:flex;flex-direction:column;gap:10px}
+
+.tabbar{
+  position:relative;z-index:5;flex:0 0 auto;margin:0 12px 0;
+  padding:6px 6px calc(env(safe-area-inset-bottom,0px) + 6px);
+  border-radius:26px 26px 22px 22px;
+  display:grid;grid-template-columns:repeat(4,1fr);gap:4px;
+}
+.tab{
+  min-height:52px;border-radius:18px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+  color:var(--ink-3);font-size:.66rem;font-weight:600;transition:color .2s,background .2s,transform .2s;
+}
+.tab svg{width:23px;height:23px}
+.tab[aria-selected="true"]{color:var(--accent-ink);background:var(--plate);transform:translateY(-1px)}
+@media (hover:hover){.tab:hover{color:var(--ink-2)}}
+
+/* =========================================================
+   6. 共通パーツ
+   ========================================================= */
+.h1{font-size:1.32rem;font-weight:700;letter-spacing:.01em;margin:6px 0 2px}
+.sub{font-size:.84rem;color:var(--ink-2);margin:0 0 12px}
+.card-pane{padding:16px;border-radius:var(--r-lg);margin-bottom:14px}
+.label{font-size:.74rem;font-weight:700;color:var(--ink-3);letter-spacing:.08em;margin:14px 4px 8px}
+.btn{
+  min-height:52px;padding:12px 18px;border-radius:22px;display:flex;align-items:center;justify-content:center;gap:10px;
+  font-size:1rem;font-weight:700;transition:transform .16s cubic-bezier(.2,.8,.2,1),box-shadow .16s;
+  -webkit-user-select:none;user-select:none;
+}
+.btn:active{transform:scale(.975)}
+.btn svg{width:20px;height:20px}
+.btn-primary{background:var(--accent);color:#fff;border:1px solid rgba(255,255,255,.28);
+  box-shadow:var(--shadow-sm), inset 0 1px 0 rgba(255,255,255,.34), inset 0 -1px 0 rgba(0,0,0,.16)}
+@media (prefers-color-scheme: dark){.btn-primary{color:#12151A}}
+.btn-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.btn-row-3{display:grid;grid-template-columns:1fr auto 1fr;gap:10px}
+.btn-sm{min-height:48px;font-size:.9rem;border-radius:18px}
+.btn-ghost{color:var(--ink-2);min-height:48px;font-weight:600;font-size:.88rem;border-radius:18px}
+.btn-ok{color:var(--ok);border-color:rgba(255,255,255,.5)}
+.btn-ng{color:var(--ng)}
+.icon-btn{width:48px;height:48px;border-radius:18px;display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+.icon-btn svg{width:22px;height:22px}
+.pill{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:8px 14px;border-radius:16px;
+  font-size:.86rem;font-weight:700;background:var(--plate);color:var(--ink-2);border:1px solid var(--line)}
+.pill[aria-pressed="true"],.pill.on{background:var(--accent);color:#fff;border-color:transparent}
+@media (prefers-color-scheme: dark){.pill[aria-pressed="true"],.pill.on{color:#12151A}}
+.row{display:flex;align-items:center;gap:10px}
+.between{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.mono{font-variant-numeric:tabular-nums}
+.tiny{font-size:.76rem;color:var(--ink-3)}
+hr.sep{border:0;border-top:1px solid var(--line);margin:12px 0}
+
+/* トグルスイッチ（48px以上のタップ領域） */
+.switch{position:relative;width:56px;height:34px;border-radius:99px;background:var(--plate);border:1px solid var(--line);flex:0 0 auto;transition:background .2s}
+.switch::after{content:"";position:absolute;top:3px;left:3px;width:26px;height:26px;border-radius:50%;background:#fff;box-shadow:0 2px 6px rgba(0,0,0,.24);transition:transform .22s cubic-bezier(.2,.8,.2,1)}
+.switch[aria-checked="true"]{background:var(--accent)}
+.switch[aria-checked="true"]::after{transform:translateX(22px)}
+.switch-row{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:56px}
+.switch-row .st{font-size:.94rem;font-weight:600}
+.switch-row .sd{font-size:.74rem;color:var(--ink-3);margin-top:2px}
+
+/* =========================================================
+   7. ホーム：デイリーリング
+   ========================================================= */
+.ring-wrap{display:flex;flex-direction:column;align-items:center;gap:10px;padding:18px 16px 20px}
+.dring{position:relative;width:196px;height:196px}
+.dring svg{width:100%;height:100%;transform:rotate(-90deg)}
+.dring .trk{fill:none;stroke:var(--plate);stroke-width:14}
+.dring .bar{fill:none;stroke:var(--accent);stroke-width:14;stroke-linecap:round;transition:stroke-dashoffset .8s cubic-bezier(.2,.8,.2,1)}
+.dring .cen{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
+.dring .big{font-size:2.5rem;font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
+.dring .cap{font-size:.78rem;color:var(--ink-2)}
+.stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.stat{padding:12px 8px;border-radius:var(--r-sm);text-align:center;background:var(--plate);border:1px solid var(--line)}
+.stat b{display:block;font-size:1.24rem;font-variant-numeric:tabular-nums}
+.stat span{font-size:.7rem;color:var(--ink-3)}
+
+/* =========================================================
+   8. 3Dカードデッキ
+   ========================================================= */
+.sess-top{flex:0 0 auto;padding:6px 18px 2px;display:flex;align-items:center;justify-content:space-between;gap:10px}
+.prog{position:relative;flex:1 1 auto;height:6px;border-radius:99px;background:var(--plate);overflow:hidden}
+.prog i{position:absolute;inset:0 auto 0 0;width:0;background:var(--accent);border-radius:99px;transition:width .35s ease}
+/* 3D空間はここで確立（祖先の overflow / opacity で平面化されるため個別に付与） */
+.sess-body{flex:1 1 auto;min-height:0;display:flex;align-items:center;justify-content:center;padding:10px 18px;
+  perspective:1100px;perspective-origin:50% 46%}
+
+.deck-tilt{width:100%;max-width:360px;transform-style:preserve-3d;transition:transform .3s ease-out}
+.deck{position:relative;width:100%;height:min(52vh,380px);transform-style:preserve-3d}
+.card{
+  position:absolute;inset:0;transform-style:preserve-3d;will-change:transform,opacity;
+  transition:transform .42s cubic-bezier(.2,.8,.2,1),opacity .3s ease;
+}
+.card.drag{transition:none}
+.card3d{position:absolute;inset:0;transform-style:preserve-3d;transition:transform .55s cubic-bezier(.3,.9,.25,1);will-change:transform}
+.card.flip .card3d{transform:rotateY(180deg)}
+/* 厚み：内枠だけを塗ったスラブを重ね、板ではなく立体に見せる */
+.slab{position:absolute;inset:0;border-radius:var(--r-lg);box-shadow:inset 0 0 0 13px var(--edge)}
+.face{
+  position:absolute;inset:0;border-radius:var(--r-lg);
+  backface-visibility:hidden;-webkit-backface-visibility:hidden;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;
+  padding:26px 22px;text-align:center;
+}
+.face.front{transform:translateZ(7px)}
+.face.back{transform:rotateY(180deg) translateZ(7px)}
+.word{font-size:2.1rem;font-weight:700;letter-spacing:-.01em;line-height:1.14;word-break:break-word;
+  font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Inter,Roboto,sans-serif}
+.ipa{font-size:1rem;color:var(--ink-2)}
+.pos{display:inline-block;padding:4px 10px;border-radius:12px;background:var(--plate);border:1px solid var(--line);font-size:.76rem;font-weight:700;color:var(--ink-2)}
+.mean{font-size:1.4rem;font-weight:700;line-height:1.45}
+.ex-en{font-size:1.02rem;line-height:1.55;color:var(--ink)}
+.ex-ja{font-size:.94rem;line-height:1.6;color:var(--ink-2)}
+.face .plate-box{background:var(--plate);border:1px solid var(--line);border-radius:var(--r-sm);padding:12px 14px;width:100%}
+.face-hint{font-size:.76rem;color:var(--ink-3)}
+/* スワイプ方向のラベル（発光させず、明度差だけで示す） */
+.tag{position:absolute;top:22px;padding:8px 14px;border-radius:14px;font-size:.86rem;font-weight:800;opacity:0;
+  border:1.5px solid currentColor;background:var(--plate);transition:opacity .12s;transform:translateZ(10px)}
+.tag.know{right:20px;color:var(--ok)}
+.tag.no{left:20px;color:var(--ng)}
+/* 奥のカードは中身を隠し、手前のカードの文字が絶対に読みにくくならないようにする */
+.card.bg-card .face > *{opacity:0}
+.card.bg-card .tag{display:none}
+.deck-empty{color:var(--ink-3);font-size:.9rem;text-align:center;padding:30px}
+
+/* 4択・スペル */
+.q-pane{width:100%;max-width:360px;padding:22px 20px;border-radius:var(--r-lg);text-align:center;transform-style:preserve-3d}
+.q-kicker{font-size:.74rem;font-weight:700;letter-spacing:.1em;color:var(--ink-3);margin-bottom:10px}
+.choice{width:100%;min-height:58px;padding:12px 16px;border-radius:20px;font-size:1.02rem;font-weight:600;text-align:left;
+  justify-content:flex-start;display:flex;align-items:center;gap:12px;transition:transform .16s,background .2s,color .2s}
+.choice .no{width:26px;height:26px;border-radius:9px;background:var(--plate);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:.74rem;font-weight:800;color:var(--ink-3);flex:0 0 auto}
+.choice:active{transform:scale(.985)}
+.choice.correct{background:var(--ok-soft);color:var(--ok);border-color:rgba(255,255,255,.5)}
+.choice.wrong{background:var(--ng-soft);color:var(--ng)}
+.choice.dim{opacity:.5}
+.spell-input{
+  width:100%;min-height:56px;font-size:1.18rem;font-weight:700;text-align:center;letter-spacing:.06em;
+  border-radius:20px;border:1px solid var(--line);background:var(--plate);color:var(--ink);padding:12px 14px;
+}
+.spell-input::placeholder{color:var(--ink-3);font-weight:500;letter-spacing:normal}
+.spell-hint{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:1.5rem;letter-spacing:.24em;color:var(--ink-2)}
+.judge{font-size:.94rem;font-weight:700;min-height:22px}
+.judge.ok{color:var(--ok)} .judge.ng{color:var(--ng)}
+
+/* =========================================================
+   9. 3Dリング状の単語帳
+   ========================================================= */
+.ring-stage{position:relative;height:300px;perspective:900px;perspective-origin:50% 50%;overflow:hidden;touch-action:none}
+.ring3d{position:absolute;inset:0;transform-style:preserve-3d;will-change:transform}
+.ring-item{position:absolute;left:50%;top:50%;width:206px;height:132px;margin:-66px 0 0 -103px;transform-style:preserve-3d;will-change:transform,opacity}
+.ring-face{position:absolute;inset:0;border-radius:var(--r-md);padding:14px;display:flex;flex-direction:column;justify-content:center;gap:6px;
+  transform-style:preserve-3d;will-change:transform}
+.ring-face .rw{font-size:1.28rem;font-weight:700}
+.ring-face .rm{font-size:.92rem;color:var(--ink-2)}
+.ring-nav{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center}
+
+/* 単語リスト */
+.wlist{display:flex;flex-direction:column;gap:8px}
+.wrow{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:var(--r-sm);background:var(--plate);border:1px solid var(--line);min-height:58px;text-align:left;width:100%}
+.wrow b{font-size:1.06rem}
+.wrow .m{font-size:.8rem;color:var(--ink-2);margin-top:1px}
+.dot{width:10px;height:10px;border-radius:50%;flex:0 0 auto}
+.dot.new{background:var(--ink-3)} .dot.learning{background:var(--terra)} .dot.mastered{background:var(--ok)}
+.search{width:100%;min-height:52px;font-size:1rem;border-radius:20px;border:1px solid var(--line);background:var(--plate);color:var(--ink);padding:10px 16px}
+
+/* =========================================================
+   10. 実績・グラフ
+   ========================================================= */
+.chart{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;align-items:end;height:150px;padding-top:6px}
+.bar-col{display:flex;flex-direction:column;align-items:center;gap:6px;height:100%;justify-content:flex-end}
+.bar{width:100%;max-width:26px;border-radius:10px 10px 6px 6px;background:linear-gradient(180deg,var(--accent),var(--sage));
+  min-height:4px;transition:height .6s cubic-bezier(.2,.8,.2,1);box-shadow:inset 0 1px 0 rgba(255,255,255,.4)}
+.bar.today{background:linear-gradient(180deg,var(--terra),var(--accent))}
+.bar-lab{font-size:.68rem;color:var(--ink-3)}
+.bar-val{font-size:.66rem;color:var(--ink-3);font-variant-numeric:tabular-nums}
+.badges{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;perspective:800px}
+.badge{padding:14px 12px;border-radius:var(--r-sm);background:var(--plate);border:1px solid var(--line);text-align:center;
+  transform-style:preserve-3d;transition:transform .3s}
+.badge .ic{width:46px;height:46px;margin:0 auto 8px;border-radius:14px;display:flex;align-items:center;justify-content:center;
+  background:linear-gradient(160deg,rgba(255,255,255,.5),rgba(255,255,255,.08));border:1px solid var(--line);box-shadow:inset 0 1px 0 rgba(255,255,255,.5), 0 6px 12px rgba(35,39,46,.14)}
+.badge .ic svg{width:24px;height:24px;color:var(--accent-ink)}
+.badge b{font-size:.86rem;display:block}
+.badge span{font-size:.7rem;color:var(--ink-3);display:block;margin-top:2px}
+.badge.got{transform:translateZ(14px)}
+.badge.lock{opacity:.72}
+.badge.lock .ic{filter:blur(1.5px) grayscale(1);opacity:.5}
+.badge.lock b,.badge.lock span{filter:blur(.2px);color:var(--ink-3)}
+
+/* =========================================================
+   11. ボトムシート / モーダル / トースト
+   ========================================================= */
+.overlay{position:absolute;inset:0;z-index:20;display:flex;align-items:flex-end;justify-content:center}
+.overlay[hidden]{display:none}
+.scrim{position:absolute;inset:0;background:rgba(20,22,26,.34);opacity:0;transition:opacity .28s}
+.overlay.show .scrim{opacity:1}
+.sheet{
+  position:relative;width:100%;max-height:78%;border-radius:30px 30px 0 0;
+  padding:8px 18px calc(env(safe-area-inset-bottom,0px) + 18px);
+  transform:translateY(102%);transition:transform .34s cubic-bezier(.2,.85,.25,1);
+  display:flex;flex-direction:column;min-height:0;will-change:transform;
+}
+.overlay.show .sheet{transform:translateY(0)}
+.grab{width:44px;height:5px;border-radius:99px;background:var(--line);margin:6px auto 10px;flex:0 0 auto}
+.sheet-scroll{overflow-y:auto;overscroll-behavior:contain;min-height:0;padding-bottom:6px}
+/* スクロール上端で行が切れて重なって見えないよう、12pxだけ薄くフェードさせる */
+@supports (mask-image:linear-gradient(#000,#000)) or (-webkit-mask-image:linear-gradient(#000,#000)){
+  .sheet-scroll{-webkit-mask-image:linear-gradient(180deg,transparent 0,#000 12px);mask-image:linear-gradient(180deg,transparent 0,#000 12px)}
+}
+/* ストア／購入シートは中身が多いので高く取り、操作ボタンは常に親指の届く位置へ固定 */
+.sheet.tall{max-height:92%}
+.sticky-foot{position:sticky;bottom:-2px;z-index:2;padding-top:12px;margin-top:10px;
+  background:linear-gradient(180deg,transparent,var(--glass-solid) 44%)}
+.modal-center{align-items:center;padding:18px}
+.modal{position:relative;width:100%;max-height:84%;border-radius:var(--r-lg);padding:18px;display:flex;flex-direction:column;min-height:0;
+  transform:scale(.94) translateY(10px);opacity:0;transition:transform .3s cubic-bezier(.2,.85,.25,1),opacity .25s}
+.overlay.show .modal{transform:scale(1) translateY(0);opacity:1}
+/* トーストは「情報」なので上部に出す（下部の操作ボタンを覆わない） */
+.toast-wrap{position:absolute;left:0;right:0;top:calc(env(safe-area-inset-top,0px) + 62px);z-index:30;
+  display:flex;flex-direction:column;align-items:center;gap:8px;pointer-events:none;padding:0 18px}
+.toast{background:var(--glass-solid);color:var(--ink);border:1px solid var(--line);border-radius:20px;padding:11px 16px;
+  box-shadow:var(--shadow);font-size:.88rem;font-weight:700;display:flex;align-items:center;gap:10px;
+  animation:toastIn .3s cubic-bezier(.2,.8,.2,1) both}
+.toast svg{width:20px;height:20px;color:var(--accent-ink)}
+.toast.out{animation:toastOut .3s ease forwards}
+@keyframes toastIn{from{opacity:0;transform:translateY(-14px) scale(.96)}to{opacity:1;transform:none}}
+@keyframes toastOut{to{opacity:0;transform:translateY(-10px)}}
+
+/* =========================================================
+   12. 演出レイヤー（3D空間の手前に飛び出す数字 / 光の粒）
+   ========================================================= */
+.fx{position:absolute;inset:0;z-index:25;pointer-events:none;perspective:900px;transform-style:preserve-3d;overflow:hidden}
+.xp-pop{position:absolute;left:50%;top:52%;transform:translate3d(-50%,0,0);font-size:2rem;font-weight:800;
+  color:var(--accent-ink);font-variant-numeric:tabular-nums;animation:xpPop 1.05s cubic-bezier(.2,.7,.3,1) forwards;
+  text-shadow:0 2px 10px rgba(35,39,46,.22);will-change:transform,opacity}
+.xp-pop.ng{color:var(--ng)}
+@keyframes xpPop{
+  0%{transform:translate3d(-50%,0,0) scale(.6);opacity:0}
+  18%{opacity:1}
+  100%{transform:translate3d(-50%,-96px,240px) scale(1.1);opacity:0}
+}
+.lvup{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;transform-style:preserve-3d}
+.lvup .plate2{background:var(--glass-solid);border:1px solid var(--glass-brd);border-radius:28px;padding:22px 28px;text-align:center;
+  box-shadow:var(--shadow);animation:lvIn 1.9s cubic-bezier(.2,.8,.2,1) forwards;will-change:transform,opacity}
+.lvup .plate2 .k{font-size:.76rem;font-weight:700;letter-spacing:.14em;color:var(--ink-3)}
+.lvup .plate2 .v{font-size:2.4rem;font-weight:800;line-height:1.15}
+.lvup .plate2 .d{font-size:.84rem;color:var(--ink-2)}
+@keyframes lvIn{
+  0%{transform:translateZ(-160px) scale(.86);opacity:0}
+  16%{transform:translateZ(90px) scale(1.04);opacity:1}
+  62%{transform:translateZ(60px) scale(1);opacity:1}
+  100%{transform:translateZ(30px) scale(.99);opacity:0}
+}
+/* 光の粒（無彩色。色付きグローは使わない） */
+.spark{position:absolute;left:50%;top:50%;width:10px;height:10px;border-radius:50%;
+  background:radial-gradient(circle,rgba(255,255,255,.95),rgba(255,255,255,0) 70%);
+  animation:spark 1.6s ease-out forwards;will-change:transform,opacity}
+@keyframes spark{
+  0%{transform:translate3d(-50%,-50%,0) scale(.2);opacity:0}
+  25%{opacity:.75}
+  100%{transform:translate3d(calc(-50% + var(--dx)),calc(-50% + var(--dy)),var(--dz)) scale(1.5);opacity:0}
+}
+.flash{position:absolute;inset:0;background:var(--ok-soft);opacity:0;animation:flash .5s ease-out forwards}
+.flash.ng{background:var(--ng-soft)}
+@keyframes flash{0%{opacity:0}20%{opacity:1}100%{opacity:0}}
+
+/* =========================================================
+   13. モーションを減らす設定（3D酔い対策・必須）
+   ========================================================= */
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.12s!important}
+  .blob{animation:none!important}
+  .card{transform:none!important}
+  .card3d{transform:none!important;transition:opacity .12s!important}
+  .card.flip .face.front{opacity:0}
+  .face{transition:opacity .12s}
+  .face.back{transform:none!important;opacity:0}
+  .card.flip .face.back{opacity:1}
+  .badge.got{transform:none!important}
+  .ring3d,.ring-item,.ring-face{transform:none!important}
+  .xp-pop{animation:fadeOnly .7s ease forwards!important}
+  .lvup .plate2{animation:fadeOnly 1.6s ease forwards!important}
+  .spark{display:none!important}
+}
+@keyframes fadeOnly{0%{opacity:0}20%{opacity:1}100%{opacity:0}}
+/* 設定でOFFにした場合も同じ挙動にする（クラス方式） */
+.nomotion .blob{animation:none!important}
+.nomotion .card{transform:none!important}
+.nomotion .card3d{transform:none!important}
+.nomotion .card.flip .face.front{opacity:0}
+.nomotion .face.back{transform:none!important;opacity:0}
+.nomotion .card.flip .face.back{opacity:1}
+.nomotion .badge.got{transform:none!important}
+.nomotion .deck-tilt{transform:none!important}
+.nomotion .spark{display:none!important}
+.nomotion .xp-pop{animation:fadeOnly .7s ease forwards!important}
+.nomotion .lvup .plate2{animation:fadeOnly 1.6s ease forwards!important}
+/* リングは reduce 時は平面リスト風に縦積みで見せる */
+.nomotion .ring-item,.nomotion .ring3d,.nomotion .ring-face{transform:none!important}
+
+/* =========================================================================
+   PRO LAYER — 高精細マテリアル & 微細アニメーション（ここから上書き／追加）
+   方針: transform / opacity / filter のみを動かし、layout は一切動かさない
+   ========================================================================= */
+:root{
+  --e-out:cubic-bezier(.16,.84,.24,1);        /* 減速 */
+  --e-spring:cubic-bezier(.22,1.28,.36,1);    /* わずかな行き過ぎ */
+  --e-soft:cubic-bezier(.4,0,.2,1);
+  --d1:.16s; --d2:.3s; --d3:.5s; --d4:.86s;
+  --hair:1px;
+  --spec:rgba(255,255,255,.92);               /* 鏡面ハイライト */
+  --spec-2:rgba(255,255,255,.32);
+  --shadow-deep:
+    0 1px 1px rgba(35,39,46,.05),
+    0 4px 6px rgba(35,39,46,.06),
+    0 12px 20px rgba(35,39,46,.08),
+    0 28px 56px rgba(35,39,46,.14);
+}
+@media (min-resolution:2dppx){ :root{ --hair:.5px } }
+@media (prefers-color-scheme: dark){
+  :root{
+    --spec:rgba(255,255,255,.42); --spec-2:rgba(255,255,255,.14);
+    --shadow-deep:
+      0 1px 1px rgba(0,0,0,.22),
+      0 6px 10px rgba(0,0,0,.26),
+      0 16px 28px rgba(0,0,0,.32),
+      0 34px 64px rgba(0,0,0,.44);
+  }
+}
+body{text-rendering:optimizeLegibility;font-feature-settings:"kern" 1,"liga" 1}
+#app{
+  /* 多点メッシュ状の下地。ブロブと合わせて奥行きのある「環境光」をつくる */
+  background:
+    radial-gradient(90% 60% at 20% -6%, color-mix(in srgb, var(--bg-1) 88%, #ffffff) 0%, transparent 62%),
+    radial-gradient(80% 50% at 92% 8%, color-mix(in srgb, var(--bg-2) 90%, var(--accent) 6%) 0%, transparent 58%),
+    radial-gradient(120% 80% at 50% 108%, color-mix(in srgb, var(--bg-2) 92%, var(--sage) 8%) 0%, transparent 70%),
+    linear-gradient(180deg, var(--bg-1), var(--bg-2));
+}
+@supports not (background:color-mix(in srgb,#fff,#000)){
+  #app{background:radial-gradient(120% 90% at 50% 0%, var(--bg-1) 0%, var(--bg-2) 62%, var(--bg-2) 100%)}
+}
+/* 微細なフィルムグレイン（材質の解像感を上げる／完全に無彩色） */
+.grain{position:absolute;inset:0;z-index:1;pointer-events:none;opacity:.05;mix-blend-mode:overlay}
+@media (prefers-color-scheme: dark){ .grain{opacity:.07} }
+.blobs{filter:blur(34px) url(#liquid) saturate(108%)}
+.b4{width:44%;aspect-ratio:1;right:4%;bottom:18%;background:var(--blob-1);opacity:.34;animation:drift4 62s ease-in-out infinite alternate}
+.b5{width:38%;aspect-ratio:1;left:-6%;top:44%;background:var(--blob-3);opacity:.3;animation:drift5 58s ease-in-out infinite alternate}
+@keyframes drift4{from{transform:translate3d(0,0,0) scale(1)}to{transform:translate3d(-12%,-14%,0) scale(1.2)}}
+@keyframes drift5{from{transform:translate3d(0,0,0) scale(1.1)}to{transform:translate3d(12%,8%,0) scale(.9)}}
+
+/* ---------- ガラスの3層構造を強化（ハイライト／イルミネーション／シャドウ） ---------- */
+.glass{
+  border-width:var(--hair);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.16), rgba(255,255,255,0) 34%),
+    var(--glass-bg);
+  -webkit-backdrop-filter:blur(24px) saturate(150%) brightness(1.02);
+  backdrop-filter:blur(24px) saturate(150%) brightness(1.02);
+  box-shadow:
+    var(--shadow-deep),
+    inset 0 var(--hair) 0 var(--glass-hi),
+    inset 0 calc(var(--hair) * -1) 0 var(--glass-lo),
+    inset 0 -18px 24px -18px rgba(35,39,46,.16);
+}
+.glass::before{
+  background:
+    radial-gradient(72% 52% at var(--gx,26%) var(--gy,0%), var(--spec) 0%, rgba(255,255,255,0) 58%),
+    radial-gradient(46% 32% at calc(100% - var(--gx,26%)) 100%, var(--spec-2) 0%, rgba(255,255,255,0) 62%);
+  opacity:.7;transition:opacity var(--d2) var(--e-out), background-position var(--d2) linear;
+}
+/* 縁を走る光：グラデーションを1pxの枠だけに切り抜く */
+@supports ((-webkit-mask-composite:xor) or (mask-composite:exclude)){
+  .glass > .rim-light, .rim-light{
+    content:"";position:absolute;inset:0;border-radius:inherit;padding:var(--hair);pointer-events:none;
+    background:linear-gradient(135deg, rgba(255,255,255,.95) 0%, rgba(255,255,255,.20) 26%, rgba(255,255,255,0) 46%,
+      rgba(255,255,255,.14) 68%, rgba(255,255,255,.72) 100%);
+    -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite:xor; mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); mask-composite:exclude;
+    opacity:.9;
+  }
+}
+@media (prefers-color-scheme: dark){ .rim-light{opacity:.55} }
+/* 押した位置に光が集まる（ホバー非依存の触感フィードバック） */
+.btn,.choice,.pill,.wrow,.tab,.icon-btn{position:relative}
+.lit::before{
+  content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+  background:radial-gradient(130px 130px at var(--px,50%) var(--py,50%), var(--spec) 0%, rgba(255,255,255,0) 62%)!important;
+  opacity:1!important;transition:opacity .06s linear!important;
+}
+.btn,.choice,.pill,.wrow,.tab,.icon-btn{transition:transform var(--d1) var(--e-spring), box-shadow var(--d2) var(--e-out), background var(--d2) var(--e-out), color var(--d2) var(--e-out), opacity var(--d2)}
+.btn:active,.choice:active,.pill:active,.wrow:active{transform:scale(.972)}
+.btn-primary{background:linear-gradient(180deg, color-mix(in srgb, var(--accent) 88%, #ffffff), var(--accent));
+  box-shadow:var(--shadow-deep), inset 0 var(--hair) 0 rgba(255,255,255,.42), inset 0 -2px 6px rgba(0,0,0,.18)}
+@supports not (background:color-mix(in srgb,#fff,#000)){ .btn-primary{background:var(--accent)} }
+
+/* ---------- 3Dカード：厚み・鏡面・視差レイヤー ---------- */
+.sess-body{perspective:1000px;perspective-origin:50% 44%}
+.deck-tilt{transition:transform var(--d3) var(--e-out)}
+.card{transition:transform var(--d3) var(--e-spring), opacity var(--d2) var(--e-out)}
+.card3d{transition:transform .66s cubic-bezier(.3,1.06,.3,1)}
+/* 接地影：カードの傾きに合わせて動く独立レイヤー */
+.card-shadow{
+  position:absolute;left:9%;right:9%;bottom:-16px;height:30px;border-radius:50%;pointer-events:none;
+  background:radial-gradient(50% 100% at 50% 0%, rgba(35,39,46,.30), rgba(35,39,46,0) 72%);
+  filter:blur(9px);transform:translateZ(-40px);transition:transform var(--d3) var(--e-out), opacity var(--d3);
+}
+@media (prefers-color-scheme: dark){ .card-shadow{background:radial-gradient(50% 100% at 50% 0%, rgba(0,0,0,.55), rgba(0,0,0,0) 72%)} }
+.slab{
+  box-shadow:inset 0 0 0 13px var(--edge), inset 0 0 0 14px rgba(255,255,255,.06);
+  transition:opacity var(--d2)
+}
+/* 側面の光の当たり方を段階的に変える（板ではなく塊に見せる） */
+.card3d .slab:nth-child(1){opacity:1}
+.card3d .slab:nth-child(2){opacity:.9}
+.card3d .slab:nth-child(3){opacity:.8}
+.card3d .slab:nth-child(4){opacity:.72}
+.card3d .slab:nth-child(5){opacity:.64}
+.card3d .slab:nth-child(6){opacity:.56}
+.face{padding:30px 24px;gap:12px;transform-style:preserve-3d}
+.face.front{transform:translateZ(8px)}
+.face.back{transform:rotateY(180deg) translateZ(8px)}
+/* 面の内側で要素ごとに奥行きを変える＝紙ではなく空間に見える */
+.lyr{transform-style:preserve-3d;will-change:transform;transition:transform var(--d3) var(--e-out)}
+.l-pos{transform:translateZ(14px)}
+.l-word{transform:translateZ(34px)}
+.l-ipa{transform:translateZ(22px)}
+.l-hint{transform:translateZ(10px)}
+.l-mean{transform:translateZ(30px)}
+.l-ex{transform:translateZ(16px)}
+.word{perspective:700px}
+.word .ch{display:inline-block;animation:chIn .52s var(--e-out) both;animation-delay:calc(var(--i) * 24ms);will-change:transform,opacity}
+@keyframes chIn{from{opacity:0;transform:translate3d(0,16px,-40px) rotateX(-42deg)}to{opacity:1;transform:none}}
+/* ゆっくり通り過ぎる鏡面反射 */
+.sheen{position:absolute;inset:0;border-radius:inherit;overflow:hidden;pointer-events:none;opacity:.7}
+.sheen i{position:absolute;top:-45%;left:-70%;width:52%;height:190%;
+  background:linear-gradient(100deg, rgba(255,255,255,0), rgba(255,255,255,.42) 46%, rgba(255,255,255,0));
+  transform:rotate(9deg) translateX(-30%);animation:sweep 6.4s var(--e-soft) infinite;animation-delay:1.1s;will-change:transform}
+@keyframes sweep{0%,74%{transform:rotate(9deg) translateX(-30%)}100%{transform:rotate(9deg) translateX(340%)}}
+@media (prefers-color-scheme: dark){ .sheen{opacity:.4} }
+.tag{transition:opacity .1s linear, transform var(--d2) var(--e-spring);transform:translateZ(26px) scale(.94)}
+/* スワイプで枠外に出ても判定ラベルが見えるよう内側に寄せる */
+.tag.know{right:42px}
+.tag.no{left:42px}
+.card.drag .tag{transform:translateZ(26px) scale(1)}
+/* デッキ生成時にカードが順にせり上がる */
+.card.enter{animation:cardIn .62s var(--e-spring) both}
+@keyframes cardIn{from{opacity:0;transform:translate3d(0,26px,-260px) scale(.86)}}
+.card.flip .card3d{animation:flipLift .66s var(--e-soft) both}
+@keyframes flipLift{0%{transform:rotateY(0) translateZ(0)}45%{transform:rotateY(90deg) translateZ(34px) scale(1.015)}100%{transform:rotateY(180deg) translateZ(0)}}
+.card:not(.flip) .card3d{animation:flipBack .66s var(--e-soft) both}
+@keyframes flipBack{0%{transform:rotateY(180deg) translateZ(0)}45%{transform:rotateY(90deg) translateZ(34px) scale(1.015)}100%{transform:rotateY(0) translateZ(0)}}
+.card.fresh .card3d{animation:none}
+
+/* ---------- タブバー：形が追従するインジケータ ---------- */
+.tabbar{position:relative}
+.tab-ind{position:absolute;top:6px;height:52px;left:0;width:0;border-radius:18px;z-index:0;pointer-events:none;
+  background:linear-gradient(180deg, color-mix(in srgb, var(--plate) 92%, #ffffff), var(--plate));
+  box-shadow:inset 0 var(--hair) 0 rgba(255,255,255,.7), 0 6px 14px rgba(35,39,46,.10);
+  transition:transform .46s var(--e-spring), width .46s var(--e-spring), opacity var(--d2)}
+@supports not (background:color-mix(in srgb,#fff,#000)){ .tab-ind{background:var(--plate)} }
+.tab{position:relative;z-index:1;background:none!important}
+.tab svg{transition:transform var(--d3) var(--e-spring)}
+.tab[aria-selected="true"] svg{transform:translateY(-1px) scale(1.1)}
+.tab[aria-selected="true"]{transform:none}
+
+/* ---------- 画面遷移・段階表示 ---------- */
+.view{perspective:1000px}
+.view.enter{animation:viewIn .5s var(--e-out) both}
+@keyframes viewIn{from{opacity:0;transform:translate3d(0,12px,-70px)}to{opacity:1;transform:none}}
+.rise{animation:riseIn .52s var(--e-out) both}
+@keyframes riseIn{from{opacity:0;transform:translate3d(0,14px,-30px)}to{opacity:1;transform:none}}
+.q-pane{animation:paneIn .56s var(--e-spring) both}
+@keyframes paneIn{from{opacity:0;transform:translate3d(0,10px,-90px) scale(.96)}to{opacity:1;transform:none}}
+.choice.wrong{animation:shake .42s var(--e-soft) both}
+@keyframes shake{10%,90%{transform:translateX(-2px)}30%,70%{transform:translateX(4px)}50%{transform:translateX(-4px)}100%{transform:none}}
+.choice.correct{animation:popOk .5s var(--e-spring) both}
+@keyframes popOk{40%{transform:scale(1.03)}100%{transform:none}}
+.wrow{transition:transform var(--d1) var(--e-spring), background var(--d2)}
+.badge{transition:transform var(--d3) var(--e-spring), opacity var(--d3)}
+.bar{transition:height .7s var(--e-spring)}
+#xpFill{transition:width .82s var(--e-spring)}
+.dring .bar{transition:stroke-dashoffset 1.1s var(--e-spring)}
+.prog i{transition:width .5s var(--e-spring)}
+#comboBadge{transition:opacity var(--d2), transform var(--d3) var(--e-spring)}
+#comboBadge.beat{animation:beat .5s var(--e-spring)}
+@keyframes beat{0%{transform:scale(1)}35%{transform:scale(1.16)}100%{transform:scale(1)}}
+.toast{animation:toastIn .42s var(--e-spring) both}
+.sheet{transition:transform .46s var(--e-spring)}
+.modal{transition:transform .42s var(--e-spring), opacity var(--d2)}
+.spell-input{transition:transform var(--d2) var(--e-spring), box-shadow var(--d2)}
+.spell-input:focus{outline:none;transform:translateY(-2px);
+  box-shadow:0 0 0 var(--hair) var(--accent), 0 10px 24px rgba(35,39,46,.14)}
+
+/* ---------- 演出の解像度を上げる ---------- */
+.xp-pop{font-size:2.2rem;letter-spacing:-.02em;animation:xpPop 1.15s cubic-bezier(.16,.7,.24,1) forwards}
+.xp-pop .trail{position:absolute;inset:0;opacity:.34;transform:scale(1.06);filter:blur(6px)}
+.shock{position:absolute;left:50%;top:50%;width:120px;height:120px;margin:-60px 0 0 -60px;border-radius:50%;
+  border:1px solid rgba(255,255,255,.5);animation:shock 1.5s var(--e-out) forwards;will-change:transform,opacity}
+@keyframes shock{0%{transform:translateZ(0) scale(.2);opacity:0}18%{opacity:.55}100%{transform:translateZ(120px) scale(2.6);opacity:0}}
+.lvup .plate2{border-radius:30px;padding:26px 32px;transform-style:preserve-3d}
+.lvup .plate2 .v{letter-spacing:-.02em;transform:translateZ(26px)}
+.lvup .plate2 .k{transform:translateZ(14px)}
+.spark{width:8px;height:8px}
+.spark.big{width:14px;height:14px;filter:blur(.5px)}
+
+/* ---------- 3Dリング：前面を大きく、奥を柔らかく ---------- */
+.ring-stage{height:320px;perspective:820px}
+.ring-item{transition:opacity var(--d3) var(--e-out)}
+.ring-face{transition:box-shadow var(--d3), transform var(--d3) var(--e-out)}
+
+/* ---------- 情報密度の最適化（下部の操作エリアを広く保つ） ---------- */
+.h1{margin:4px 0 2px}
+.card-pane{padding:15px;margin-bottom:12px}
+.ring-wrap{padding:12px 16px 14px}
+.dring{width:178px;height:178px}
+.dring .big{font-size:2.3rem}
+.label{margin:11px 4px 7px}
+/* スクロール終端をやわらかく落として「切れて見える」のを防ぐ */
+.scroll{
+  -webkit-mask-image:linear-gradient(180deg,#000 0, #000 calc(100% - 22px), rgba(0,0,0,0) 100%);
+  mask-image:linear-gradient(180deg,#000 0, #000 calc(100% - 22px), rgba(0,0,0,0) 100%);
+}
+
+/* ---------- 高解像度ディスプレイ向けの微調整 ---------- */
+@media (min-resolution:2dppx){
+  .stat,.pill,.wrow,.plate-box,.search,.spell-input{border-width:.5px}
+  .slab{box-shadow:inset 0 0 0 12.5px var(--edge), inset 0 0 0 13px rgba(255,255,255,.06)}
+}
+
+/* =========================================================================
+   Word Plus（追加コンテンツ）ストア — デモ購入フロー
+   ※ ガラスの上にガラスは重ねない：ストア枠がガラスなので中身は不透明プレート
+   ========================================================================= */
+.store{padding:16px;border-radius:var(--r-lg);margin-bottom:12px}
+.store-head{display:flex;gap:12px;align-items:flex-start}
+.app-icon{width:62px;height:62px;border-radius:17px;flex:0 0 auto;position:relative;overflow:hidden;
+  background:linear-gradient(155deg,#7290BC 0%, var(--accent) 54%, #3D5A85 100%);
+  box-shadow:0 10px 20px rgba(35,39,46,.22), inset 0 1px 0 rgba(255,255,255,.5)}
+.app-icon svg{position:absolute;inset:0;width:100%;height:100%}
+/* 共通テスト対策キットは別プロダクト＝別配色（インク＆ペーパー系のディープグリーン） */
+.app-icon.exam{background:linear-gradient(155deg,#5E8C7B 0%, #2C5A4C 52%, #1E3F35 100%)}
+.store-title{font-size:1.08rem;font-weight:800;line-height:1.25;letter-spacing:-.01em}
+.store-pub{font-size:.76rem;color:var(--accent-ink);font-weight:700;margin-top:3px}
+.store-meta{font-size:.7rem;color:var(--ink-3);margin-top:5px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.dot-sep{width:3px;height:3px;border-radius:50%;background:var(--ink-3);display:inline-block}
+.demo-chip{display:inline-flex;align-items:center;gap:4px;padding:2px 7px;border-radius:8px;font-size:.63rem;font-weight:800;
+  letter-spacing:.08em;background:var(--plate);border:1px dashed var(--ink-3);color:var(--ink-2)}
+.stars{display:inline-flex;gap:1px;color:var(--terra);vertical-align:-2px}
+.stars svg{width:12px;height:12px}
+.price-row{display:flex;align-items:center;gap:12px;margin-top:15px}
+.price{font-size:1.55rem;font-weight:800;letter-spacing:-.02em;line-height:1}
+.price-sub{font-size:.67rem;color:var(--ink-3);margin-top:3px}
+.btn-plain{background:var(--plate);border:1px solid var(--line)}
+.buy-btn{flex:1 1 auto;min-height:52px;border-radius:18px;font-size:1rem;font-weight:800}
+.incl{display:flex;flex-direction:column;gap:8px;margin-top:14px}
+.incl-row{display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:14px;background:var(--plate);border:1px solid var(--line)}
+.incl-row svg{width:20px;height:20px;color:var(--accent-ink);flex:0 0 auto}
+.incl-row b{font-size:.9rem;display:block}
+.incl-row span{font-size:.71rem;color:var(--ink-3);display:block;margin-top:1px}
+.prev-strip{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
+.prev-tile{position:relative;border-radius:14px;background:var(--plate);border:1px solid var(--line);padding:10px;height:90px;
+  overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end;gap:3px}
+.prev-tile b{font-size:.8rem;line-height:1.2}
+.prev-tile span{font-size:.6rem;color:var(--ink-3);line-height:1.3}
+.prev-tile.locked .pv{filter:blur(2.6px);opacity:.6}
+.prev-lock{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--ink-2)}
+.prev-lock svg{width:22px;height:22px}
+.note{font-size:.68rem;color:var(--ink-3);line-height:1.65;margin-top:11px}
+.owned-tag{display:inline-flex;align-items:center;gap:6px;color:var(--ok);font-weight:800;font-size:.84rem}
+.owned-tag svg{width:17px;height:17px}
+.lock-chip{margin-left:auto;font-size:.62rem;font-weight:800;padding:3px 8px;border-radius:8px;
+  background:var(--plate);border:1px solid var(--line);color:var(--ink-3);white-space:nowrap}
+
+/* --- 購入シート --- */
+.pay-head{display:flex;gap:12px;align-items:center;padding:2px 0 12px}
+.pay-line{border-top:1px solid var(--line)}
+.pay-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 0;font-size:.9rem}
+.pay-row .k{color:var(--ink-2);font-size:.84rem}
+.pay-row .v{font-weight:700}
+.pay-method{display:flex;align-items:center;gap:11px;padding:12px;border-radius:14px;background:var(--plate);border:1px solid var(--line);margin-top:4px}
+.pay-method svg{width:22px;height:22px;color:var(--accent-ink);flex:0 0 auto}
+.pay-total{font-size:1.28rem;font-weight:800}
+.spinner{width:40px;height:40px;border-radius:50%;border:3px solid var(--line);border-top-color:var(--accent);
+  margin:0 auto;animation:spin .9s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.dlprog{height:8px;border-radius:99px;background:var(--plate);border:1px solid var(--line);overflow:hidden;position:relative}
+.dlprog i{position:absolute;inset:0 auto 0 0;width:0;border-radius:99px;background:linear-gradient(90deg,var(--accent),var(--sage));transition:width .28s linear}
+.step-txt{font-size:.84rem;color:var(--ink-2);text-align:center;min-height:22px}
+.check-anim{width:66px;height:66px;margin:0 auto;display:block}
+.check-anim .cc{fill:none;stroke:var(--ok);stroke-width:2.5;opacity:.32}
+.check-anim .ck{fill:none;stroke:var(--ok);stroke-width:4;stroke-linecap:round;stroke-linejoin:round;
+  stroke-dasharray:36;stroke-dashoffset:36;animation:draw .55s var(--e-out) .12s forwards}
+@keyframes draw{to{stroke-dashoffset:0}}
+.receipt{background:var(--plate);border:1px solid var(--line);border-radius:16px;padding:14px;position:relative;overflow:hidden;
+  font-variant-numeric:tabular-nums}
+.receipt .wm{position:absolute;right:-4px;bottom:-14px;font-size:2.5rem;font-weight:900;color:var(--ink-3);opacity:.13;
+  transform:rotate(-13deg);letter-spacing:.08em;pointer-events:none}
+.rc-row{display:flex;justify-content:space-between;gap:10px;font-size:.82rem;padding:4px 0;position:relative}
+.rc-row .k{color:var(--ink-3)}
+.rc-dash{border-top:1px dashed var(--line);margin:9px 0}
+
+/* --- 長文読解 --- */
+.sess-body.scrolly{align-items:flex-start;overflow-y:auto;overscroll-behavior:contain;
+  -webkit-mask-image:linear-gradient(180deg,#000 0,#000 calc(100% - 18px),rgba(0,0,0,0) 100%);
+  mask-image:linear-gradient(180deg,#000 0,#000 calc(100% - 18px),rgba(0,0,0,0) 100%)}
+.passage{width:100%;padding:16px;border-radius:var(--r-lg);text-align:left}
+.pg-title{font-size:1.12rem;font-weight:800;line-height:1.35}
+.pg-sub{font-size:.72rem;color:var(--ink-3);margin:4px 0 12px}
+.pg-p{margin:0;padding:11px 0;border-top:1px solid var(--line)}
+.pg-p:first-of-type{border-top:0;padding-top:2px}
+.pg-en{font-size:1.02rem;line-height:1.72}
+.pg-ja{font-size:.9rem;line-height:1.75;color:var(--ink-2);margin-top:7px;display:none}
+.pg-p.open .pg-ja{display:block}
+.pg-tap{font-size:.65rem;color:var(--ink-3);margin-top:5px}
+.q-text{font-size:1.02rem;font-weight:700;line-height:1.62;text-align:left}
+.exp{font-size:.82rem;line-height:1.72;color:var(--ink-2);background:var(--plate);border:1px solid var(--line);
+  border-radius:14px;padding:11px 12px;margin-top:11px;text-align:left}
+.prow{display:flex;align-items:center;gap:12px;padding:14px;border-radius:18px;background:var(--plate);
+  border:1px solid var(--line);width:100%;text-align:left;min-height:66px}
+.prow b{font-size:.96rem;display:block}
+.prow span{font-size:.71rem;color:var(--ink-3);display:block;margin-top:2px}
+.prow .pn{width:34px;height:34px;border-radius:11px;background:var(--glass-solid);border:1px solid var(--line);
+  display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.82rem;color:var(--accent-ink);flex:0 0 auto}
+.plist{display:flex;flex-direction:column;gap:10px;width:100%}
+.prow .pn span{margin:0;color:inherit;font-size:inherit}
+
+/* ---------- モーション低減時は追加演出も完全停止 ---------- */
+@media (prefers-reduced-motion: reduce){
+  .sheen,.card-shadow,.shock{display:none!important}
+  .word .ch{animation:none!important}
+  .card.enter,.view.enter,.rise,.q-pane,.choice.correct,.choice.wrong,.card.flip .card3d,.card:not(.flip) .card3d{animation:none!important}
+  .tab-ind{transition:none!important}
+}
+.nomotion .sheen,.nomotion .card-shadow,.nomotion .shock{display:none!important}
+.nomotion .word .ch{animation:none!important}
+.nomotion .card.enter,.nomotion .view.enter,.nomotion .rise,.nomotion .q-pane,
+.nomotion .choice.correct,.nomotion .choice.wrong,
+.nomotion .card.flip .card3d,.nomotion .card:not(.flip) .card3d{animation:none!important}
+.nomotion .tab-ind{transition:none!important}
+.nomotion .lyr{transform:none!important}
+.nomotion .spinner{animation:none!important}
+.nomotion .check-anim .ck{animation:none!important;stroke-dashoffset:0!important}
+@media (prefers-reduced-motion: reduce){
+  .spinner{animation:none!important}
+  .check-anim .ck{animation:none!important;stroke-dashoffset:0!important}
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- 背景ブロブ + 屈折フィルタ -->
+  <div class="bg" aria-hidden="true">
+    <div class="blobs">
+      <span class="blob b1"></span><span class="blob b2"></span><span class="blob b3"></span>
+      <span class="blob b4"></span><span class="blob b5"></span>
+    </div>
+    <!-- 微細グレイン：ガラスと下地に「解像感」を与える（無彩色・静止） -->
+    <svg class="grain" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+      <filter id="grainf" x="0" y="0" width="100%" height="100%">
+        <feTurbulence type="fractalNoise" baseFrequency="0.86" numOctaves="3" stitchTiles="stitch"/>
+        <feColorMatrix type="saturate" values="0"/>
+      </filter>
+      <rect width="100%" height="100%" filter="url(#grainf)"/>
+    </svg>
+  </div>
+  <svg class="svgdefs" aria-hidden="true" focusable="false">
+    <filter id="liquid" x="-20%" y="-20%" width="140%" height="140%" color-interpolation-filters="sRGB">
+      <feTurbulence type="fractalNoise" baseFrequency="0.009 0.013" numOctaves="2" seed="9" result="noise"/>
+      <feDisplacementMap in="SourceGraphic" in2="noise" scale="34" xChannelSelector="R" yChannelSelector="G"/>
+    </filter>
+  </svg>
+
+  <!-- 上部：情報表示のみ -->
+  <header class="topbar" id="topbar">
+    <div class="lvl-chip glass">
+      <span class="lvl-num" id="lvlNum">Lv 1</span>
+      <span class="xpbar"><i id="xpFill"></i></span>
+      <span class="xptext" id="xpText">0/80</span>
+    </div>
+    <div class="chip glass" id="comboBadge" aria-live="polite">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 3l-1.5 7H17l-6 11 1.5-8H7z"/></svg>
+      <span id="comboText">x1.0</span>
+    </div>
+    <div class="chip glass" id="streakChip" title="連続学習日数">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3c2.5 3 4.5 4.8 4.5 8a4.5 4.5 0 11-9 0c0-1.6.7-2.8 1.6-4"/></svg>
+      <span id="streakText">0日</span>
+    </div>
+  </header>
+
+  <main class="main" id="main">
+
+    <!-- ============ ホーム ============ -->
+    <section class="view active" id="view-home" aria-label="ホーム">
+      <div class="scroll">
+        <h1 class="h1" id="greet">こんにちは</h1>
+        <p class="sub" id="todayLine">きょうも少しずつ。</p>
+
+        <div class="card-pane glass">
+          <div class="ring-wrap">
+            <div class="dring" role="img" id="dringImg" aria-label="デイリーゴールの進捗">
+              <svg viewBox="0 0 200 200" aria-hidden="true">
+                <circle class="trk" cx="100" cy="100" r="84"/>
+                <circle class="bar" id="dringBar" cx="100" cy="100" r="84" stroke-dasharray="527.8" stroke-dashoffset="527.8"/>
+              </svg>
+              <div class="cen">
+                <span class="big" id="dCount">0</span>
+                <span class="cap" id="dCap">/ 20 語（今日）</span>
+              </div>
+            </div>
+            <p class="tiny" id="streakLine" style="text-align:center;margin:0">またここから始めよう。</p>
+          </div>
+          <div class="stat-grid">
+            <div class="stat"><b id="sNew">0</b><span>未学習</span></div>
+            <div class="stat"><b id="sLearn">0</b><span>学習中</span></div>
+            <div class="stat"><b id="sMaster">0</b><span>習得済み</span></div>
+          </div>
+        </div>
+
+        <div class="label" id="storeLabel">追加コンテンツ</div>
+        <section class="store glass" id="storeCard" aria-label="追加コンテンツ Word Plus"></section>
+        <section class="store glass" id="storeCard2" aria-label="追加コンテンツ 共通テスト対策キット"></section>
+
+        <div class="label">今日の一言</div>
+        <div class="card-pane glass">
+          <p style="margin:0;font-size:.92rem;line-height:1.7;color:var(--ink-2)" id="tipLine">
+            5分でも大丈夫。カードを右へスワイプで「わかる」、左へで「わからない」。
+          </p>
+        </div>
+      </div>
+
+      <!-- 主要操作はサムゾーンに -->
+      <div class="actions">
+        <button class="btn btn-primary" id="goStudy">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><path d="M5 4l14 8-14 8z"/></svg>
+          学習をはじめる
+        </button>
+        <div class="btn-row">
+          <button class="btn btn-sm glass" id="goWeak">苦手を復習</button>
+          <button class="btn btn-sm glass" id="goSettings">設定</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 学習 ============ -->
+    <section class="view" id="view-study" aria-label="学習">
+
+      <!-- メニュー -->
+      <div id="studyMenu" style="display:flex;flex-direction:column;min-height:0;flex:1 1 auto">
+        <div class="scroll">
+          <h1 class="h1">学習メニュー</h1>
+          <p class="sub">1セッション 5〜10分。片手でどうぞ。</p>
+          <div class="label">モード</div>
+          <div id="modeList" style="display:flex;flex-direction:column;gap:8px"></div>
+          <div class="label">レベル（複数選択可）</div>
+          <div class="row" id="lvPicks" style="gap:8px"></div>
+          <div class="label">出題数</div>
+          <div class="row" id="countPicks" style="gap:8px"></div>
+          <div class="card-pane glass" style="margin-top:14px">
+            <p class="tiny" style="margin:0;line-height:1.7">間隔反復（SM-2簡易版）で、忘れかけの語を優先して出題します。未学習の語も少しずつ混ざります。</p>
+          </div>
+        </div>
+        <div class="actions">
+          <button class="btn btn-primary" id="startBtn">このセッションを始める</button>
+          <button class="btn btn-ghost glass" id="weakBtn">苦手単語だけで復習する</button>
+        </div>
+      </div>
+
+      <!-- セッション -->
+      <div id="session" style="display:none;flex-direction:column;min-height:0;flex:1 1 auto">
+        <div class="sess-top">
+          <span class="tiny mono" id="sessCount">1 / 10</span>
+          <span class="prog"><i id="sessProg"></i></span>
+          <span class="tiny" id="sessMode">単語カード</span>
+        </div>
+        <div class="sess-body" id="sessBody"></div>
+        <div class="actions" id="sessActions"></div>
+      </div>
+    </section>
+
+    <!-- ============ 単語帳 ============ -->
+    <section class="view" id="view-book" aria-label="単語帳">
+      <div class="scroll" id="bookScroll">
+        <h1 class="h1">単語帳</h1>
+        <p class="sub" id="bookSub">90語収録。タップで詳細。</p>
+        <div id="bookList" class="wlist"></div>
+        <div id="ringView" style="display:none">
+          <div class="ring-stage" id="ringStage">
+            <div class="ring3d" id="ring3d"></div>
+          </div>
+          <p class="tiny" style="text-align:center;margin:10px 0 0">横にスワイプ、または下のボタンで回せます。</p>
+        </div>
+      </div>
+      <div class="actions">
+        <div id="ringNav" class="ring-nav" style="display:none">
+          <button class="btn icon-btn glass" id="ringPrev" aria-label="前の単語">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+          </button>
+          <button class="btn btn-sm glass" id="ringSpeak">この単語を読み上げる</button>
+          <button class="btn icon-btn glass" id="ringNext" aria-label="次の単語">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
+          </button>
+        </div>
+        <input class="search" id="searchInput" type="search" placeholder="単語・意味を検索" inputmode="search" autocapitalize="off" autocorrect="off" spellcheck="false" aria-label="単語検索">
+        <div class="row" id="bookFilter" style="gap:8px"></div>
+        <button class="btn btn-sm glass" id="viewToggle">3Dリング表示に切り替え</button>
+      </div>
+    </section>
+
+    <!-- ============ 実績 ============ -->
+    <section class="view" id="view-stats" aria-label="実績">
+      <div class="scroll">
+        <h1 class="h1">実績</h1>
+        <p class="sub" id="statsSub">積み上がった記録です。</p>
+
+        <div class="card-pane glass">
+          <div class="between">
+            <div>
+              <div class="tiny">レベル</div>
+              <div style="font-size:2rem;font-weight:800;line-height:1.1" id="stLevel">1</div>
+            </div>
+            <div style="text-align:right">
+              <div class="tiny">累計XP</div>
+              <div style="font-size:1.4rem;font-weight:700" class="mono" id="stXP">0</div>
+            </div>
+          </div>
+          <hr class="sep">
+          <div class="stat-grid">
+            <div class="stat"><b id="stAns">0</b><span>回答数</span></div>
+            <div class="stat"><b id="stAcc">0%</b><span>正答率</span></div>
+            <div class="stat"><b id="stCombo">0</b><span>最高コンボ</span></div>
+          </div>
+        </div>
+
+        <div class="label">週間サマリー（獲得XP）</div>
+        <div class="card-pane glass">
+          <div class="chart" id="chart"></div>
+        </div>
+
+        <div class="label">バッジ</div>
+        <div class="badges" id="badgeGrid"></div>
+        <div style="height:6px"></div>
+      </div>
+      <div class="actions">
+        <button class="btn btn-sm glass" id="goSettings2">設定を開く</button>
+      </div>
+    </section>
+  </main>
+
+  <!-- 固定ガラスタブバー -->
+  <nav class="tabbar glass" role="tablist" aria-label="メインナビゲーション">
+    <span class="tab-ind" id="tabInd" aria-hidden="true"></span>
+    <button class="tab" role="tab" aria-selected="true" data-view="home">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11l8-6 8 6"/><path d="M6 10v9h12v-9"/></svg>
+      ホーム
+    </button>
+    <button class="tab" role="tab" aria-selected="false" data-view="study">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="6" width="13" height="13" rx="3"/><path d="M7.5 4h9a3 3 0 013 3v9"/></svg>
+      学習
+    </button>
+    <button class="tab" role="tab" aria-selected="false" data-view="book">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h9a3 3 0 013 3v13H8a3 3 0 01-3-3z"/><path d="M17 7h2v13H8"/></svg>
+      単語帳
+    </button>
+    <button class="tab" role="tab" aria-selected="false" data-view="stats">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 4h8v4a4 4 0 01-8 0z"/><path d="M12 12v4"/><path d="M8 20h8"/><path d="M16 5h3a3 3 0 01-3 3M8 5H5a3 3 0 003 3"/></svg>
+      実績
+    </button>
+  </nav>
+
+  <!-- 演出・オーバーレイ -->
+  <div class="fx" id="fx" aria-hidden="true"></div>
+  <div class="toast-wrap" id="toastWrap" aria-live="polite"></div>
+
+  <div class="overlay" id="sheetOv" hidden>
+    <div class="scrim" data-close="1"></div>
+    <div class="sheet glass" id="sheet" role="dialog" aria-modal="true" aria-label="単語の詳細">
+      <div class="grab" id="sheetGrab"></div>
+      <div class="sheet-scroll" id="sheetBody"></div>
+    </div>
+  </div>
+
+  <div class="overlay modal-center" id="modalOv" hidden>
+    <div class="scrim" data-close="1"></div>
+    <div class="modal glass" id="modal" role="dialog" aria-modal="true" aria-label="ダイアログ">
+      <div class="sheet-scroll" id="modalBody"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* =====================================================================
+   Glass Vocab — スマホ専用 英単語学習アプリ（Vanilla JS / 外部依存なし）
+   構成: ①データ ②保存 ③XP・ゲーミフィケーション ④SRS ⑤UI ⑥ジェスチャー ⑦演出
+   ===================================================================== */
+(function(){
+"use strict";
+
+/* ---------------------------------------------------------------
+   0. 小さなユーティリティ
+   --------------------------------------------------------------- */
+var $ = function(id){ return document.getElementById(id); };
+var clamp = function(v,a,b){ return v<a?a:(v>b?b:v); };
+var esc = function(s){ return String(s).replace(/[&<>"']/g, function(c){
+  return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]; }); };
+function shuffle(a){ for(var i=a.length-1;i>0;i--){ var j=Math.floor(Math.random()*(i+1)); var t=a[i]; a[i]=a[j]; a[j]=t; } return a; }
+function clone(o){ return JSON.parse(JSON.stringify(o)); }
+function dayKey(d){ d=d||new Date(); return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2); }
+function dayOffset(n){ var d=new Date(); d.setDate(d.getDate()+n); return dayKey(d); }
+var DAY=86400000;
+
+/* ---------------------------------------------------------------
+   1. 単語データ（初級30 / 中級30 / 上級30 = 90語）
+      [単語, 発音記号, 品詞, 意味, 例文(英), 例文(日)]
+      ★追加方法: 該当レベルの配列に同じ形式で1行足すだけでOK
+   --------------------------------------------------------------- */
+var RAW = {
+beginner:[
+["improve","/ɪmˈpruːv/","動","改善する・上達する","I practice speaking to improve my English.","英語を上達させるために話す練習をしている。"],
+["decide","/dɪˈsaɪd/","動","決める・決心する","We decided to meet at the station at noon.","私たちは正午に駅で会うことに決めた。"],
+["borrow","/ˈbɔːroʊ/","動","借りる","May I borrow your umbrella for a while?","少しの間、傘を借りてもいいですか。"],
+["quiet","/ˈkwaɪət/","形","静かな","The library was very quiet this morning.","今朝、図書館はとても静かだった。"],
+["reason","/ˈriːzn/","名","理由・根拠","Please tell me the reason for your decision.","あなたの決断の理由を教えてください。"],
+["choice","/tʃɔɪs/","名","選択・選択肢","You made a very good choice.","とてもよい選択をしましたね。"],
+["arrive","/əˈraɪv/","動","到着する","The train will arrive in five minutes.","電車は5分後に到着します。"],
+["careful","/ˈkerfl/","形","注意深い","Be careful when you cross the street.","道を渡るときは注意してね。"],
+["explain","/ɪkˈspleɪn/","動","説明する","Could you explain this word again?","この単語をもう一度説明してもらえますか。"],
+["health","/helθ/","名","健康","Walking every day is good for your health.","毎日歩くことは健康に良い。"],
+["invite","/ɪnˈvaɪt/","動","招待する","They invited us to their wedding.","彼らは私たちを結婚式に招待した。"],
+["simple","/ˈsɪmpl/","形","簡単な・質素な","The recipe is simple enough for beginners.","そのレシピは初心者にも十分簡単だ。"],
+["weather","/ˈweðər/","名","天気","The weather will be clear tomorrow.","明日は天気が良くなるだろう。"],
+["travel","/ˈtrævl/","動","旅行する","I want to travel around Europe by train.","電車でヨーロッパを旅行したい。"],
+["suddenly","/ˈsʌdnli/","副","突然に","It suddenly started to rain.","突然雨が降り出した。"],
+["remember","/rɪˈmembər/","動","覚えている・思い出す","I can't remember his phone number.","彼の電話番号を思い出せない。"],
+["difficult","/ˈdɪfɪkəlt/","形","難しい","This question is difficult but interesting.","この問題は難しいが面白い。"],
+["return","/rɪˈtɜːrn/","動","戻る・返す","Please return the book by Friday.","金曜日までに本を返してください。"],
+["village","/ˈvɪlɪdʒ/","名","村","My grandmother lives in a small village.","祖母は小さな村に住んでいる。"],
+["promise","/ˈprɑːmɪs/","名/動","約束（する）","I promise I will call you tonight.","今夜必ず電話すると約束する。"],
+["bridge","/brɪdʒ/","名","橋","We walked across the old stone bridge.","私たちは古い石橋を歩いて渡った。"],
+["enough","/ɪˈnʌf/","形/副","十分な・十分に","We have enough time before the movie.","映画までに十分な時間がある。"],
+["future","/ˈfjuːtʃər/","名","未来・将来","She wants to be a doctor in the future.","彼女は将来医者になりたい。"],
+["kitchen","/ˈkɪtʃɪn/","名","台所","He is cooking dinner in the kitchen.","彼は台所で夕食を作っている。"],
+["holiday","/ˈhɑːlədeɪ/","名","休日・祝日","We are going to the sea during the holiday.","休日に海へ行く予定だ。"],
+["useful","/ˈjuːsfl/","形","役に立つ","This app is useful for learning words.","このアプリは単語学習に役立つ。"],
+["finish","/ˈfɪnɪʃ/","動","終える","I finished my homework before dinner.","夕食前に宿題を終えた。"],
+["surprise","/sərˈpraɪz/","名/動","驚き・驚かせる","Her gift was a wonderful surprise.","彼女の贈り物は素敵な驚きだった。"],
+["crowded","/ˈkraʊdɪd/","形","混雑した","The bus is always crowded in the morning.","朝のバスはいつも混雑している。"],
+["prepare","/prɪˈper/","動","準備する","I need to prepare for the test tomorrow.","明日のテストの準備をしなければならない。"]
+],
+intermediate:[
+["accomplish","/əˈkɑːmplɪʃ/","動","達成する・成し遂げる","The team accomplished its goal ahead of schedule.","チームは予定より早く目標を達成した。"],
+["adequate","/ˈædɪkwət/","形","十分な・適切な","The room has adequate light for reading.","その部屋は読書に十分な明るさがある。"],
+["anticipate","/ænˈtɪsɪpeɪt/","動","予期する・見込む","We anticipate a rise in demand next quarter.","来四半期は需要の増加を見込んでいる。"],
+["approximate","/əˈprɑːksɪmət/","形","おおよその","The approximate cost is ten thousand yen.","おおよその費用は1万円です。"],
+["assume","/əˈsuːm/","動","想定する・引き受ける","Let's assume the report is correct.","その報告が正しいと想定しよう。"],
+["beneficial","/ˌbenɪˈfɪʃl/","形","有益な","Regular exercise is beneficial to health.","定期的な運動は健康に有益だ。"],
+["collaborate","/kəˈlæbəreɪt/","動","協力する・共同作業する","Two departments collaborated on the new design.","二つの部署が新しい設計で協力した。"],
+["compensate","/ˈkɑːmpenseɪt/","動","補償する・補う","The company compensated customers for the delay.","会社は遅延について顧客に補償した。"],
+["comprehensive","/ˌkɑːmprɪˈhensɪv/","形","包括的な","She wrote a comprehensive report on the market.","彼女は市場に関する包括的な報告書を書いた。"],
+["consistent","/kənˈsɪstənt/","形","一貫した・矛盾のない","His results have been consistent all year.","彼の成績は一年中一貫している。"],
+["contribute","/kənˈtrɪbjuːt/","動","貢献する・寄与する","Everyone contributed ideas to the project.","全員がプロジェクトに意見を出した。"],
+["crucial","/ˈkruːʃl/","形","極めて重要な","Timing is crucial in this negotiation.","この交渉ではタイミングが極めて重要だ。"],
+["demonstrate","/ˈdemənstreɪt/","動","実演する・示す","He demonstrated how the machine works.","彼は機械の動作を実演した。"],
+["distribute","/dɪˈstrɪbjuːt/","動","配布する・分配する","Please distribute the handouts to everyone.","資料を全員に配布してください。"],
+["efficient","/ɪˈfɪʃnt/","形","効率的な","The new system is far more efficient.","新しいシステムはずっと効率的だ。"],
+["eliminate","/ɪˈlɪmɪneɪt/","動","取り除く・除外する","We must eliminate unnecessary steps.","不要な手順を取り除かなければならない。"],
+["emphasize","/ˈemfəsaɪz/","動","強調する","The teacher emphasized the importance of review.","先生は復習の重要性を強調した。"],
+["essential","/ɪˈsenʃl/","形","必要不可欠な","Water is essential for life.","水は生命に不可欠だ。"],
+["establish","/ɪˈstæblɪʃ/","動","設立する・確立する","The company was established in 1998.","その会社は1998年に設立された。"],
+["evaluate","/ɪˈvæljueɪt/","動","評価する","We evaluate progress once a month.","私たちは月に一度進捗を評価する。"],
+["flexible","/ˈfleksəbl/","形","柔軟な","My schedule is flexible this week.","今週は予定を柔軟に調整できる。"],
+["implement","/ˈɪmplɪment/","動","実施する・導入する","The city implemented a new recycling rule.","市は新しい再生利用の規則を実施した。"],
+["maintain","/meɪnˈteɪn/","動","維持する・保守する","It is hard to maintain such a high level.","これほど高い水準を維持するのは難しい。"],
+["negotiate","/nɪˈɡoʊʃieɪt/","動","交渉する","They negotiated a better price.","彼らはより良い価格を交渉した。"],
+["obtain","/əbˈteɪn/","動","得る・入手する","You can obtain a form at the front desk.","受付で用紙を入手できます。"],
+["potential","/pəˈtenʃl/","名/形","可能性・潜在的な","This plan has great potential.","この計画には大きな可能性がある。"],
+["reluctant","/rɪˈlʌktənt/","形","気乗りしない","He was reluctant to change his plan.","彼は計画を変えることに気乗りしなかった。"],
+["reveal","/rɪˈviːl/","動","明らかにする","The survey revealed an interesting trend.","調査は興味深い傾向を明らかにした。"],
+["significant","/sɪɡˈnɪfɪkənt/","形","重要な・著しい","There was a significant drop in cost.","費用に著しい低下があった。"],
+["sufficient","/səˈfɪʃnt/","形","十分な","We have sufficient data to decide.","決定するのに十分なデータがある。"]
+],
+advanced:[
+["ambiguous","/æmˈbɪɡjuəs/","形","曖昧な・多義的な","His answer was ambiguous on purpose.","彼の答えは意図的に曖昧だった。"],
+["arbitrary","/ˈɑːrbɪtreri/","形","恣意的な・任意の","The deadline seems completely arbitrary.","その期限は全く恣意的に思える。"],
+["articulate","/ɑːrˈtɪkjuleɪt/","動","明確に述べる","She articulated her concerns calmly.","彼女は懸念を落ち着いて明確に述べた。"],
+["coherent","/koʊˈhɪrənt/","形","首尾一貫した","We need a coherent strategy.","首尾一貫した戦略が必要だ。"],
+["compelling","/kəmˈpelɪŋ/","形","説得力のある","He gave a compelling reason to wait.","彼は待つべき説得力のある理由を示した。"],
+["conscientious","/ˌkɑːnʃiˈenʃəs/","形","誠実な・良心的な","She is a conscientious worker.","彼女は誠実な働き手だ。"],
+["contemplate","/ˈkɑːntəmpleɪt/","動","じっくり考える","He contemplated moving abroad.","彼は海外移住をじっくり考えた。"],
+["discrepancy","/dɪˈskrepənsi/","名","不一致・食い違い","There is a discrepancy between the two reports.","二つの報告の間に食い違いがある。"],
+["disseminate","/dɪˈsemɪneɪt/","動","広める・普及させる","The findings were disseminated widely.","その知見は広く普及した。"],
+["elaborate","/ɪˈlæbərət/","形","精巧な・入念な","The plan was surprisingly elaborate.","その計画は驚くほど入念だった。"],
+["empirical","/ɪmˈpɪrɪkl/","形","経験的な・実証的な","The claim lacks empirical support.","その主張は実証的な裏付けを欠く。"],
+["exacerbate","/ɪɡˈzæsərbeɪt/","動","悪化させる","Ignoring the issue only exacerbates it.","問題を無視すれば悪化するだけだ。"],
+["feasible","/ˈfiːzəbl/","形","実現可能な","Is the schedule feasible for your team?","その日程はあなたのチームに実現可能ですか。"],
+["inevitable","/ɪnˈevɪtəbl/","形","避けられない","Some delay was inevitable.","ある程度の遅れは避けられなかった。"],
+["inherent","/ɪnˈhɪrənt/","形","本来備わった","Risk is inherent in any investment.","危険はどの投資にも本来備わっている。"],
+["intricate","/ˈɪntrɪkət/","形","複雑で入り組んだ","The clock has an intricate mechanism.","その時計は入り組んだ機構を持つ。"],
+["legitimate","/lɪˈdʒɪtɪmət/","形","正当な・合法の","That is a legitimate concern.","それは正当な懸念だ。"],
+["meticulous","/məˈtɪkjələs/","形","極めて綿密な","He keeps meticulous records.","彼は極めて綿密な記録をつけている。"],
+["mitigate","/ˈmɪtɪɡeɪt/","動","軽減する・緩和する","We took steps to mitigate the damage.","損害を軽減する対策を取った。"],
+["nuance","/ˈnuːɑːns/","名","微妙な差異","Translation often loses subtle nuance.","翻訳では微妙な差異が失われがちだ。"],
+["paradigm","/ˈpærədaɪm/","名","枠組み・模範","The discovery shifted the scientific paradigm.","その発見は科学の枠組みを転換させた。"],
+["plausible","/ˈplɔːzəbl/","形","もっともらしい","That explanation sounds plausible.","その説明はもっともらしく聞こえる。"],
+["pragmatic","/præɡˈmætɪk/","形","実際的な・実利的な","She took a pragmatic approach.","彼女は実際的な手法を取った。"],
+["profound","/prəˈfaʊnd/","形","深い・重大な","The book had a profound effect on me.","その本は私に深い影響を与えた。"],
+["prone","/proʊn/","形","傾向がある","This device is prone to overheating.","この装置は過熱しやすい。"],
+["redundant","/rɪˈdʌndənt/","形","余剰の・冗長な","Remove the redundant sentences.","冗長な文を削除してください。"],
+["resilient","/rɪˈzɪliənt/","形","回復力のある","Children are remarkably resilient.","子どもは驚くほど回復力がある。"],
+["scrutiny","/ˈskruːtəni/","名","精査・吟味","The budget came under close scrutiny.","予算は綿密な精査を受けた。"],
+["tentative","/ˈtentətɪv/","形","暫定的な","We made a tentative agreement.","私たちは暫定的な合意をした。"],
+["unprecedented","/ʌnˈpresɪdentɪd/","形","前例のない","The demand reached an unprecedented level.","需要は前例のない水準に達した。"]
+]};
+
+/* ---------------------------------------------------------------
+   1-2. Word Plus（追加コンテンツ / DLC）データ
+        単語40語・長文3本・文章題24問。購入（デモ）後に解放される
+   --------------------------------------------------------------- */
+var PLUS_WORDS = [
+["abundant","/əˈbʌndənt/","形","豊富な・ありあまる","The region has abundant rainfall in summer.","その地域は夏に豊富な降雨がある。"],
+["accumulate","/əˈkjuːmjəleɪt/","動","蓄積する・積み上がる","Small savings accumulate faster than people expect.","少額の貯蓄は人の予想より速く積み上がる。"],
+["adapt","/əˈdæpt/","動","適応する・順応させる","Staff adapted quickly to the new system.","職員は新しい制度にすぐ適応した。"],
+["allocate","/ˈæləkeɪt/","動","割り当てる","The city allocated more funds to public transport.","市は公共交通にさらに予算を割り当てた。"],
+["anonymous","/əˈnɑːnɪməs/","形","匿名の","The survey was completely anonymous.","その調査は完全に匿名だった。"],
+["apparent","/əˈpærənt/","形","明らかな・見かけの","It soon became apparent that we needed help.","助けが必要なことがすぐに明らかになった。"],
+["assess","/əˈses/","動","評価する・査定する","Teachers assess progress every term.","教師は毎学期、進度を評価する。"],
+["attribute","/əˈtrɪbjuːt/","動","〜のせいだと考える","She attributes her success to steady practice.","彼女は成功を地道な練習のおかげだと考えている。"],
+["authentic","/ɔːˈθentɪk/","形","本物の・真正の","The museum displays authentic documents.","博物館は本物の文書を展示している。"],
+["collapse","/kəˈlæps/","動","崩壊する・倒れる","Support for the plan collapsed within a week.","その計画への支持は1週間で崩れた。"],
+["commodity","/kəˈmɑːdəti/","名","商品・産物","Clean water is a precious commodity here.","ここでは清潔な水が貴重な資源だ。"],
+["comply","/kəmˈplaɪ/","動","従う・遵守する","All products must comply with safety rules.","すべての製品は安全規則に従わなければならない。"],
+["conceive","/kənˈsiːv/","動","思いつく・心に抱く","He conceived the idea while walking home.","彼は帰り道でその案を思いついた。"],
+["confine","/kənˈfaɪn/","動","限定する・閉じ込める","Please confine your answer to two minutes.","回答は2分に限定してください。"],
+["constitute","/ˈkɑːnstɪtuːt/","動","構成する・〜に当たる","Women constitute half of the workforce.","女性が労働力の半分を構成している。"],
+["correspond","/ˌkɔːrəˈspɑːnd/","動","一致する・対応する","The numbers correspond to last year's data.","その数値は昨年のデータと一致する。"],
+["deteriorate","/dɪˈtɪriəreɪt/","動","悪化する","The road surface deteriorated after the storm.","嵐の後、路面が悪化した。"],
+["diminish","/dɪˈmɪnɪʃ/","動","減少する・減らす","Interest in the topic has not diminished.","その話題への関心は減っていない。"],
+["dispose","/dɪˈspoʊz/","動","処分する（of）","Please dispose of the packaging properly.","包装は適切に処分してください。"],
+["endure","/ɪnˈdʊr/","動","耐える・持ちこたえる","The bridge has endured a century of storms.","その橋は1世紀の嵐に耐えてきた。"],
+["exceed","/ɪkˈsiːd/","動","超える","Sales exceeded our forecast by ten percent.","売上は予測を10パーセント超えた。"],
+["explicit","/ɪkˈsplɪsɪt/","形","明示的な・はっきりした","The instructions were short but explicit.","指示は短いが明確だった。"],
+["fluctuate","/ˈflʌktʃueɪt/","動","変動する","Prices fluctuate with the season.","価格は季節とともに変動する。"],
+["hypothesis","/haɪˈpɑːθəsɪs/","名","仮説","The hypothesis has been tested many times.","その仮説は何度も検証されてきた。"],
+["incentive","/ɪnˈsentɪv/","名","動機づけ・誘因","Small rewards are a strong incentive to continue.","小さな報酬は続けるための強い動機づけになる。"],
+["indispensable","/ˌɪndɪˈspensəbl/","形","欠かせない","Sleep is indispensable to learning.","睡眠は学習に欠かせない。"],
+["integrate","/ˈɪntɪɡreɪt/","動","統合する・組み込む","They integrated the two databases last month.","彼らは先月、二つのデータベースを統合した。"],
+["intervene","/ˌɪntərˈviːn/","動","介入する","The teacher intervened before the argument grew.","口論が大きくなる前に教師が介入した。"],
+["novel","/ˈnɑːvl/","形","新奇な・目新しい","The team proposed a novel solution.","チームは目新しい解決策を提案した。"],
+["optimal","/ˈɑːptɪməl/","形","最適な","Morning is the optimal time for review.","朝は復習に最適な時間だ。"],
+["persist","/pərˈsɪst/","動","続く・やり続ける","The problem persisted for several weeks.","その問題は数週間続いた。"],
+["phenomenon","/fəˈnɑːmɪnən/","名","現象","This phenomenon appears in many languages.","この現象は多くの言語に現れる。"],
+["prevail","/prɪˈveɪl/","動","広く行われる・打ち勝つ","Calm eventually prevailed in the meeting.","会議では最終的に落ち着きが勝った。"],
+["prospect","/ˈprɑːspekt/","名","見込み・展望","The prospect of a long trip excited them.","長い旅の見込みが彼らを高揚させた。"],
+["refine","/rɪˈfaɪn/","動","改良する・洗練させる","We refined the plan after the first test.","最初の試験の後、計画を改良した。"],
+["reinforce","/ˌriːɪnˈfɔːrs/","動","補強する・強化する","Review reinforces what you learned today.","復習は今日学んだことを強化する。"],
+["subsequent","/ˈsʌbsɪkwənt/","形","その後の・続いて起こる","Subsequent studies confirmed the result.","その後の研究が結果を裏づけた。"],
+["substitute","/ˈsʌbstɪtuːt/","名/動","代用品・代用する","There is no substitute for daily practice.","毎日の練習に代わるものはない。"],
+["undertake","/ˌʌndərˈteɪk/","動","引き受ける・着手する","She undertook the project without hesitation.","彼女はためらわずにその企画を引き受けた。"],
+["viable","/ˈvaɪəbl/","形","実行可能な","Is a four-day week viable for your team?","週4日勤務はあなたのチームで実行可能ですか。"]
+];
+
+/* 長文3本（各4段落・英日対訳）＋文章題 各8問＝計24問 */
+var PASSAGES = [
+{
+  id:'pg1', title:'Small Steps, Lasting Change', titleJa:'小さな一歩と、続く変化', mins:3,
+  paras:[
+    ["Most people believe that changing their life requires a dramatic decision. In practice, the opposite is usually true. Small habits, repeated without drama, accumulate into results that a single burst of effort can rarely produce.",
+     "人生を変えるには劇的な決断が必要だと、多くの人は考える。実際にはその逆であることが多い。派手さのない小さな習慣の繰り返しが、一度の頑張りではまず得られない結果へと蓄積していく。"],
+    ["Researchers who study behaviour often point to a simple mechanism. When an action is easy to start, the cost of beginning is low, so the habit persists even on difficult days. Over months, the total amount of practice becomes abundant, although no single day feels impressive.",
+     "行動を研究する人々は、しばしば単純な仕組みを指摘する。行動を始めるのが簡単であれば、着手の負担が小さいため、調子の悪い日でも習慣は続く。数か月経てば、どの一日も印象的には見えないのに、練習量の総計は豊富になる。"],
+    ["This does not mean that effort is irrelevant. Rather, the optimal strategy is to make the first minute almost effortless and let motivation follow. A learner who studies ten words a day will exceed two thousand words in a year, and the vocabulary gained is authentic, because it was met again and again in real sentences.",
+     "これは努力が無関係だという意味ではない。むしろ最適な戦略は、最初の1分をほぼ無理のないものにし、やる気を後からついてこさせることだ。1日10語学ぶ学習者は1年で2000語を超え、得られた語彙は本物になる。実際の文の中で何度も出会っているからだ。"],
+    ["The prospect of slow progress is unglamorous, and many people abandon it. Yet those who endure long enough usually report the same surprise: the habit stopped feeling like work, and the results appeared subsequent to the routine, not before it.",
+     "ゆっくりした進歩という見込みは華やかさに欠け、多くの人は途中でやめてしまう。しかし十分に長く続けた人たちは、たいてい同じ驚きを語る。習慣が労働のように感じられなくなり、結果は習慣の後にやって来た、先ではなかった、と。"]
+  ],
+  qs:[
+    {t:'主旨', q:'この文章の主旨として最も適切なものはどれですか。',
+     c:['小さな習慣の繰り返しが、一度の大きな努力では得にくい結果を生む','劇的な決断こそが人生を変える唯一の方法である','努力の量は結果とほとんど関係がない','習慣づけには高い費用がかかる'], a:0,
+     e:'第1段落と第4段落が要点。「派手さのない小さな習慣の蓄積」が結果を生むと述べています。'},
+    {t:'内容一致', q:'始めるのが簡単な行動が、調子の悪い日でも続くのはなぜだと述べられていますか。',
+     c:['着手の負担（コスト）が小さいから','報酬が大きいから','他人に見られているから','時間が余っているから'], a:0,
+     e:'第2段落 "the cost of beginning is low, so the habit persists even on difficult days" が根拠です。'},
+    {t:'語義', q:'第2段落の abundant に最も近い意味はどれですか。',
+     c:['豊富な','わずかな','一時的な','不規則な'], a:0,
+     e:'abundant＝ありあまるほど多い。ここでは練習量の総計が「豊富になる」という文脈です。'},
+    {t:'空所補充', q:'A learner who studies ten words a day will ____ two thousand words in a year.',
+     c:['exceed','confine','dispose','deteriorate'], a:0,
+     e:'exceed＝超える。「1年で2000語を超える」が文意に合います。'},
+    {t:'推論', q:'やる気（motivation）について、筆者が示していることはどれですか。',
+     c:['始めた後からついてくることが多い','始める前に十分高めておく必要がある','習慣とは無関係である','報酬でしか生まれない'], a:0,
+     e:'第3段落 "make the first minute almost effortless and let motivation follow" から、やる気は着手の後に続くと読み取れます。'},
+    {t:'語義', q:'第4段落の subsequent to に最も近い意味はどれですか。',
+     c:['〜の後に','〜の代わりに','〜にもかかわらず','〜のおかげで'], a:0,
+     e:'subsequent＝その後の。results appeared subsequent to the routine＝結果は習慣の後に現れた。'},
+    {t:'内容一致', q:'得られた語彙が authentic（本物）だとされる理由はどれですか。',
+     c:['実際の文の中で繰り返し出会ったから','試験に出たから','辞書で調べたから','母語話者に教わったから'], a:0,
+     e:'第3段落 "because it was met again and again in real sentences" が根拠です。'},
+    {t:'筆者の態度', q:'ゆっくりした進歩に対する筆者の態度はどれですか。',
+     c:['華やかさはないと認めつつ、肯定的にとらえている','無意味だと切り捨てている','危険だと警告している','判断を避けている'], a:0,
+     e:'unglamorous（華やかでない）と認めながら、耐えた人が得る変化を肯定的に描いています。'}
+  ]
+},
+{
+  id:'pg2', title:'Why Cities Are Getting Greener', titleJa:'都市が緑を増やす理由', mins:3,
+  paras:[
+    ["Over the past two decades, many cities have integrated parks, street trees and green roofs into their planning. The motive is not only beauty. Vegetation lowers surface temperatures, absorbs rainfall, and can diminish the damage caused by sudden storms.",
+     "過去20年で、多くの都市が公園・街路樹・屋上緑化を計画に統合してきた。その動機は美しさだけではない。植生は表面温度を下げ、降雨を吸収し、突然の暴風雨による被害を減らすことができる。"],
+    ["Measurements in several cities correspond closely: a street with mature trees can be several degrees cooler than an identical street without them. Because energy demand for cooling fluctuates with temperature, shade also reduces electricity use in summer.",
+     "いくつかの都市での測定はよく一致している。成木のある通りは、同条件で木のない通りより数度涼しくなり得る。冷房のエネルギー需要は気温とともに変動するため、日陰は夏の電力使用も減らす。"],
+    ["Green infrastructure is not free. Trees require water, pruning and time; when maintenance budgets are cut, planting quickly deteriorates and public support may collapse. Cities that succeed usually allocate a stable budget and assess each site before planting.",
+     "グリーンインフラは無償ではない。樹木には水やり・剪定・時間が必要で、維持管理の予算が削られると植栽はすぐに劣化し、市民の支持も崩れかねない。成功する都市はたいてい安定した予算を割り当て、植える前に各地点を評価する。"],
+    ["Critics argue that greening can raise rents and displace residents. Planners therefore try to intervene early, combining new parks with housing rules, so that the benefit does not remain confined to wealthy districts.",
+     "緑化は家賃を押し上げ、住民を追い出しかねないと批判する人もいる。そのため計画者は早めに介入し、新しい公園を住宅規制と組み合わせて、恩恵が富裕な地区に限られないようにしようとする。"]
+  ],
+  qs:[
+    {t:'主旨', q:'この文章の主旨はどれですか。',
+     c:['都市の緑化には測定可能な効果があるが、安定した予算と公平な計画が必要だ','都市の緑化は見た目のためだけに行われている','緑化は費用がかからないので広まった','緑化は失敗した政策である'], a:0,
+     e:'効果（第1〜2段落）と、費用・公平性の課題（第3〜4段落）の両方を述べています。'},
+    {t:'内容一致', q:'成木のある通りについて、本文の記述はどれですか。',
+     c:['木のない同条件の通りより数度涼しくなり得る','木のない通りより湿度が必ず高い','夏の電力使用を増やす','測定結果が都市ごとに大きく矛盾する'], a:0,
+     e:'第2段落 "several degrees cooler than an identical street without them" が根拠です。'},
+    {t:'語義', q:'第2段落の fluctuates に最も近い意味はどれですか。',
+     c:['変動する','停止する','蓄積する','一致する'], a:0,
+     e:'fluctuate＝上下に変動する。気温とともに冷房需要が変動する、という文脈です。'},
+    {t:'空所補充', q:'When maintenance budgets are cut, planting quickly ____.',
+     c:['deteriorates','accumulates','prevails','exceeds'], a:0,
+     e:'deteriorate＝悪化する。予算削減で植栽が「すぐに劣化する」が文意です。'},
+    {t:'内容一致', q:'批判者（critics）の主張はどれですか。',
+     c:['緑化が家賃を上げ、住民を追い出しかねない','緑化は気温を上げてしまう','緑化は雨水を吸収しない','緑化は美観を損なう'], a:0,
+     e:'第4段落 "greening can raise rents and displace residents" が根拠です。'},
+    {t:'語義', q:'第4段落の confined to に最も近い意味はどれですか。',
+     c:['〜に限られる','〜に加えられる','〜に反する','〜に比例する'], a:0,
+     e:'confine＝限定する。恩恵が富裕地区に「限られない」ようにする、という文意です。'},
+    {t:'推論', q:'植える前に各地点を評価（assess）する理由として最も適切なものはどれですか。',
+     c:['場所により条件が異なり、育ち方や効果が変わるから','木の値段を上げるため','住民の意見を無視するため','予算を使い切るため'], a:0,
+     e:'維持管理と成否の話の直後に置かれており、条件差を踏まえた判断のためと読めます。'},
+    {t:'内容一致（不一致）', q:'植生の効果として本文に述べられて「いない」ものはどれですか。',
+     c:['地下水の汚染を増やす','表面温度を下げる','降雨を吸収する','暴風雨の被害を減らす'], a:0,
+     e:'第1段落に挙がるのは温度低下・降雨吸収・被害軽減の3点。汚染の増加は述べられていません。'}
+  ]
+},
+{
+  id:'pg3', title:'Sleep and Memory', titleJa:'睡眠と記憶', mins:3,
+  paras:[
+    ["While we sleep, the brain does not simply rest. During certain stages, patterns of activity recorded earlier in the day are replayed, and the connections that constitute a memory are reinforced.",
+     "眠っている間、脳は単に休んでいるのではない。特定の段階では、その日の早い時間に記録された活動パターンが再生され、記憶を構成する結合が強化される。"],
+    ["One widely tested hypothesis is that sleep decides what to keep. Information that seems relevant is refined and stored, while much of the rest is allowed to fade. This selection is not conscious, yet it is remarkably consistent across people.",
+     "広く検証されてきた仮説の一つは、睡眠が「何を残すか」を決めているというものだ。関連性が高いと見なされた情報は洗練されて保存され、残りの多くは薄れるままにされる。この選別は意識的ではないが、人々の間で驚くほど一貫している。"],
+    ["For learners, the practical implication is explicit: reviewing material shortly before sleep, and again the next day, is usually more effective than a single long session. Cramming may raise a test score, but the advantage rarely persists.",
+     "学習者にとって実践的な含意は明確だ。就寝の少し前に復習し、翌日にもう一度復習することは、たいてい一度の長時間学習より効果的だ。詰め込みは点数を上げることはあっても、その優位は長続きしにくい。"],
+    ["Sleep is therefore not an optional extra but an indispensable part of learning. No substitute has been found: caffeine can postpone fatigue, but it cannot undertake the work that sleep performs.",
+     "したがって睡眠は付け足しの選択肢ではなく、学習に欠かせない一部だ。代替は見つかっていない。カフェインは疲労を先送りできても、睡眠が行う仕事を引き受けることはできない。"]
+  ],
+  qs:[
+    {t:'主旨', q:'この文章の主旨はどれですか。',
+     c:['睡眠は記憶の定着に不可欠で、代わりになるものはない','睡眠は学習と無関係な休息である','詰め込み学習が最も効率的である','カフェインは睡眠の代わりになる'], a:0,
+     e:'第1〜2段落で記憶の強化と選別、第3〜4段落で実践的含意と代替不可を述べています。'},
+    {t:'内容一致', q:'睡眠中に起こることとして本文が述べているのはどれですか。',
+     c:['日中の活動パターンが再生され、記憶の結合が強化される','記憶がすべて消去される','脳の活動が完全に止まる','新しい情報だけが取り込まれる'], a:0,
+     e:'第1段落 "patterns ... are replayed, and the connections ... are reinforced" が根拠です。'},
+    {t:'語義', q:'第2段落の hypothesis に最も近い意味はどれですか。',
+     c:['仮説','結論','偶然','習慣'], a:0,
+     e:'hypothesis＝仮説。widely tested hypothesis＝広く検証されてきた仮説。'},
+    {t:'空所補充', q:'The connections that ____ a memory are reinforced.',
+     c:['constitute','substitute','intervene','fluctuate'], a:0,
+     e:'constitute＝構成する。「記憶を構成する結合」が文意に合います。'},
+    {t:'内容一致', q:'詰め込み学習（cramming）について本文の記述はどれですか。',
+     c:['点数を上げることはあるが、優位は長続きしにくい','記憶を最も強く定着させる','睡眠より効果的である','選別の対象にならない'], a:0,
+     e:'第3段落 "may raise a test score, but the advantage rarely persists" が根拠です。'},
+    {t:'語義', q:'第4段落の indispensable に最も近い意味はどれですか。',
+     c:['欠かせない','任意の','高価な','一時的な'], a:0,
+     e:'indispensable＝なくてはならない。an optional extra（任意の付け足し）と対比されています。'},
+    {t:'推論', q:'カフェインについて筆者が示していることはどれですか。',
+     c:['疲労を先送りできるが、睡眠の働きは代替できない','睡眠より学習効果が高い','記憶の選別を助ける','摂取すれば復習が不要になる'], a:0,
+     e:'第4段落 "can postpone fatigue, but it cannot undertake the work that sleep performs" が根拠です。'},
+    {t:'実践', q:'本文から導かれる復習の方法として最も適切なものはどれですか。',
+     c:['就寝前に復習し、翌日もう一度確認する','徹夜で一度にまとめて学習する','復習は1週間後に1回だけ行う','眠くなるまで学習を続ける'], a:0,
+     e:'第3段落の "shortly before sleep, and again the next day" が根拠です。'}
+  ]
+}
+];
+
+var LV_JA = {beginner:'初級', intermediate:'中級', advanced:'上級', plus:'Plus'};
+var WORDS = [], BY_ID = {};
+Object.keys(RAW).forEach(function(lv){
+  RAW[lv].forEach(function(r,i){
+    var w = {id:lv.charAt(0)+('0'+(i+1)).slice(-2), lv:lv, w:r[0], ipa:r[1], pos:r[2], ja:r[3], en:r[4], jaEx:r[5]};
+    WORDS.push(w); BY_ID[w.id]=w;
+  });
+});
+/* Word Plus の40語（id: p01〜p40）。未購入の間は一覧・出題から除外される */
+PLUS_WORDS.forEach(function(r,i){
+  var w={id:'p'+('0'+(i+1)).slice(-2), lv:'plus', w:r[0], ipa:r[1], pos:r[2], ja:r[3], en:r[4], jaEx:r[5]};
+  WORDS.push(w); BY_ID[w.id]=w;
+});
+var PASS_BY_ID={};
+PASSAGES.forEach(function(p){ PASS_BY_ID[p.id]=p; });
+
+/* ---------------------------------------------------------------
+   2. 保存（localStorage）
+   --------------------------------------------------------------- */
+var KEY='glassvocab.v1';
+var DEF={
+  xp:0, records:{}, history:{}, streak:0, lastDay:null,
+  best:{combo:0, streak:0},
+  daily:{goal:20, day:null, ids:{}, bonus:false, achieved:0},
+  stats:{answers:0, correct:0, spell:0},
+  /* 購入済みコンテンツ（デモ）：一度有効になれば永続的に利用できる */
+  dlc:{wordPlus:false, order:null, at:0, price:480,
+       examKit:false, examOrder:null, examAt:0, examPrice:560},
+  reading:{},
+  badges:{},
+  settings:{haptics:true, gyro:false, reduceMotion:false, rate:0.92, autoSpeak:true}
+};
+function merge(base, src){
+  Object.keys(src||{}).forEach(function(k){
+    if(src[k] && typeof src[k]==='object' && !Array.isArray(src[k]) && base[k] && typeof base[k]==='object'){ merge(base[k], src[k]); }
+    else if(src[k]!==undefined && src[k]!==null){ base[k]=src[k]; }
+  });
+  return base;
+}
+var S;
+try{ var raw=localStorage.getItem(KEY); S = raw? merge(clone(DEF), JSON.parse(raw)) : clone(DEF); }
+catch(e){ S = clone(DEF); }
+var saveTimer=null;
+function save(){
+  clearTimeout(saveTimer);
+  saveTimer=setTimeout(function(){ try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){} }, 120);
+}
+/* 日付が変わったらデイリー分をリセット */
+function ensureDay(){
+  var t=dayKey();
+  if(S.daily.day!==t){ S.daily.day=t; S.daily.ids={}; S.daily.bonus=false; save(); }
+}
+ensureDay();
+
+/* ---------------------------------------------------------------
+   3. モーション設定 / 触覚 / 読み上げ
+   --------------------------------------------------------------- */
+var mqReduce = window.matchMedia('(prefers-reduced-motion: reduce)');
+function MOTION(){ return !mqReduce.matches && !S.settings.reduceMotion; }
+function applyMotionClass(){
+  document.documentElement.classList.toggle('nomotion', !MOTION());
+}
+mqReduce.addEventListener ? mqReduce.addEventListener('change', function(){ applyMotionClass(); }) : null;
+
+function haptic(pattern){
+  if(!S.settings.haptics) return;
+  if(navigator.vibrate){ try{ navigator.vibrate(pattern); }catch(e){} }
+}
+var HAP={tap:10, ok:[12,40,18], ng:[26,50,26], swipe:14, level:[10,60,10,60,22]};
+
+function speak(text, lang){
+  if(!('speechSynthesis' in window)) return;
+  try{
+    window.speechSynthesis.cancel();
+    var u=new SpeechSynthesisUtterance(text);
+    u.lang = lang||'en-US';
+    u.rate = clamp(Number(S.settings.rate)||0.92, .5, 1.5);
+    u.pitch = 1;
+    window.speechSynthesis.speak(u);
+  }catch(e){}
+}
+
+/* ---------------------------------------------------------------
+   4. レベル・XP・コンボ・バッジ
+   --------------------------------------------------------------- */
+function needXP(level){ return Math.round(80*Math.pow(1.22, level-1)); }
+function levelInfo(xp){
+  var l=1, rest=xp;
+  while(rest>=needXP(l) && l<300){ rest-=needXP(l); l++; }
+  return {level:l, cur:rest, need:needXP(l)};
+}
+var combo=0, comboBest=0;            // セッション中のコンボ（倍率）
+function comboMult(){ return combo>=10?2.0 : combo>=6?1.5 : combo>=3?1.2 : 1.0; }
+
+function addXP(n, opt){
+  opt=opt||{};
+  var before=levelInfo(S.xp).level;
+  S.xp += n;
+  var t=dayKey();
+  S.history[t]=(S.history[t]||0)+n;
+  var after=levelInfo(S.xp).level;
+  save(); renderTop();
+  if(!opt.silent) fxXP((n>0?'+':'')+n+' XP');
+  if(after>before){ setTimeout(function(){ fxLevelUp(after); }, 260); }
+}
+
+/* デイリーゴール：その日に触れた語数（重複なし） */
+function addDaily(id){
+  ensureDay();
+  if(S.daily.ids[id]) return;
+  S.daily.ids[id]=1;
+  var n=Object.keys(S.daily.ids).length;
+  if(!S.daily.bonus && n>=S.daily.goal){
+    S.daily.bonus=true; S.daily.achieved=(S.daily.achieved||0)+1;
+    save();
+    setTimeout(function(){ toast('デイリーゴール達成。ボーナス +50 XP', 'star'); addXP(50,{silent:true}); }, 420);
+  }
+  save();
+}
+/* ストリーク：責めない表現で扱う */
+function touchDay(){
+  var t=dayKey();
+  if(S.lastDay===t) return;
+  S.streak = (S.lastDay===dayOffset(-1)) ? (S.streak+1) : 1;
+  S.lastDay=t;
+  S.best.streak=Math.max(S.best.streak||0, S.streak);
+  save();
+}
+function shownStreak(){
+  if(S.lastDay===dayKey()) return S.streak;
+  if(S.lastDay===dayOffset(-1)) return S.streak;
+  return 0;
+}
+
+var BADGES=[
+  {id:'first', n:'はじめの一歩', d:'最初の1語に回答', ic:'leaf', t:function(){ return S.stats.answers>=1; }},
+  {id:'a100', n:'100回の対話', d:'累計100回回答', ic:'chat', t:function(){ return S.stats.answers>=100; }},
+  {id:'combo10', n:'静かな集中', d:'コンボ10を達成', ic:'bolt', t:function(){ return (S.best.combo||0)>=10; }},
+  {id:'spell25', n:'綴りの手ざわり', d:'スペル入力で25問正解', ic:'pen', t:function(){ return S.stats.spell>=25; }},
+  {id:'day7', n:'7日のリズム', d:'7日連続で学習', ic:'moon', t:function(){ return (S.best.streak||0)>=7; }},
+  {id:'lv5', n:'レベル5', d:'レベル5に到達', ic:'up', t:function(){ return levelInfo(S.xp).level>=5; }},
+  {id:'m50', n:'50語を習得', d:'習得済みが50語', ic:'check', t:function(){ return countStatus('mastered')>=50; }},
+  {id:'daily3', n:'続く目標', d:'デイリーゴールを3回達成', ic:'target', t:function(){ return (S.daily.achieved||0)>=3; }},
+  {id:'weak10', n:'苦手と仲直り', d:'つまずいた語を10語習得', ic:'heart', t:function(){ return weakMastered()>=10; }},
+  {id:'adv30', n:'上級への旅', d:'上級の語を30語学習', ic:'star', t:function(){ return seenInLevel('advanced')>=30; }}
+];
+function checkBadges(){
+  BADGES.forEach(function(b){
+    if(!S.badges[b.id] && b.t()){
+      S.badges[b.id]=Date.now(); save();
+      toast('バッジ獲得：'+b.n, b.ic);
+      haptic(HAP.ok);
+    }
+  });
+}
+
+/* ---------------------------------------------------------------
+   5. 学習記録 / 間隔反復（SM-2の簡易版）
+   --------------------------------------------------------------- */
+function getRec(id){
+  var r=S.records[id];
+  if(!r){ r={s:'new', e:2.5, i:0, due:0, reps:0, wrong:0, seen:0, m30:0}; S.records[id]=r; }
+  return r;
+}
+function statusOf(id){ var r=S.records[id]; return r? r.s : 'new'; }
+/* Word Plus 未購入時は plus の40語を隠す */
+function hasPlus(){ return !!(S.dlc && S.dlc.wordPlus); }
+function activeWords(){
+  return hasPlus()? WORDS : WORDS.filter(function(w){ return w.lv!=='plus'; });
+}
+function countStatus(st){
+  var n=0; activeWords().forEach(function(w){ if(statusOf(w.id)===st) n++; }); return n;
+}
+function weakMastered(){
+  var n=0; activeWords().forEach(function(w){ var r=S.records[w.id]; if(r&&r.wrong>0&&r.s==='mastered') n++; }); return n;
+}
+function seenInLevel(lv){
+  var n=0; WORDS.forEach(function(w){ if(w.lv===lv && S.records[w.id] && S.records[w.id].seen>0) n++; }); return n;
+}
+function isWeak(w){ var r=S.records[w.id]; return !!(r && r.wrong>0 && r.s!=='mastered'); }
+
+/* 採点＋次回出題日の決定 */
+function grade(id, ok){
+  var r=getRec(id), now=Date.now();
+  r.seen++;
+  if(ok){
+    r.reps++;
+    r.e=clamp(r.e+0.08,1.3,2.8);
+    r.i = r.reps===1?1 : (r.reps===2?3 : Math.max(1, Math.round(r.i*r.e)));
+    r.due = now + r.i*DAY;
+    r.s = (r.reps>=3 && r.i>=7) ? 'mastered' : 'learning';
+  }else{
+    r.wrong++; r.reps=0;
+    r.e=clamp(r.e-0.2,1.3,2.8);
+    r.i=0; r.due=now+10*60000;   // 10分後に再登場
+    r.s='learning';
+  }
+  var bonus=0;
+  if(r.s==='mastered' && !r.m30){ r.m30=1; bonus=30; }
+  save();
+  return bonus;
+}
+
+/* 出題キュー：期限切れ → 未学習 → 期限先 の順 */
+function buildQueue(opt){
+  var pool = activeWords().filter(function(w){ return opt.levels.indexOf(w.lv)>=0; });
+  if(opt.weak) pool = pool.filter(isWeak);
+  var now=Date.now(), due=[], fresh=[], later=[];
+  pool.forEach(function(w){
+    var r=S.records[w.id];
+    if(!r || r.seen===0) fresh.push(w);
+    else if(r.due<=now) due.push(w);
+    else later.push(w);
+  });
+  due.sort(function(a,b){ return S.records[a.id].due-S.records[b.id].due; });
+  later.sort(function(a,b){ return S.records[a.id].due-S.records[b.id].due; });
+  shuffle(fresh);
+  return due.concat(fresh, later).slice(0, opt.n).map(function(w){ return w.id; });
+}
+
+/* ---------------------------------------------------------------
+   6. アイコン（インラインSVGを自作）
+   --------------------------------------------------------------- */
+var P={
+  speak:'<path d="M4 10v4h3l4 3V7L7 10z"/><path d="M15.5 9a4 4 0 010 6"/><path d="M18 6.5a7.5 7.5 0 010 11"/>',
+  flip:'<path d="M4 8h11a4 4 0 010 8H9"/><path d="M11.5 5.5L15 8l-3.5 2.5"/><path d="M11.5 13.5L8 16l3.5 2.5"/>',
+  up:'<path d="M12 19V6"/><path d="M6 11l6-6 6 6"/>',
+  x:'<path d="M6 6l12 12M18 6L6 18"/>',
+  check:'<path d="M5 13l4 4 10-10"/>',
+  star:'<path d="M12 4l2.3 4.9 5.2.7-3.8 3.6.9 5.2-4.6-2.5-4.6 2.5.9-5.2L4.5 9.6l5.2-.7z"/>',
+  leaf:'<path d="M6 18c0-7 5-11 12-12 1 7-3 12-9 12H6z"/><path d="M6 18c3-3 6-5 9-6"/>',
+  chat:'<path d="M5 6h14v9H10l-5 4z"/>',
+  bolt:'<path d="M13 3l-1.5 7H17l-6 11 1.5-8H7z"/>',
+  pen:'<path d="M5 19h4l10-10-4-4L5 15z"/><path d="M14 6l4 4"/>',
+  moon:'<path d="M15 4a8 8 0 100 16 7 7 0 010-16z"/>',
+  target:'<circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="3"/>',
+  heart:'<path d="M12 19s-6-3.9-6-8a3.6 3.6 0 016-2.2A3.6 3.6 0 0118 11c0 4.1-6 8-6 8z"/>',
+  info:'<circle cx="12" cy="12" r="8"/><path d="M12 11v5M12 8.2v.2"/>',
+  book:'<path d="M5 5h8a3 3 0 013 3v11H8a3 3 0 01-3-3z"/><path d="M16 8h3v11H8"/>',
+  lock:'<rect x="5.5" y="10.5" width="13" height="9.5" rx="2.6"/><path d="M8.5 10.5V8a3.5 3.5 0 017 0v2.5"/>',
+  dl:'<path d="M12 4v11"/><path d="M7.5 10.6L12 15.2l4.5-4.6"/><path d="M5 19h14"/>',
+  bag:'<path d="M6 8h12l-1 11H7z"/><path d="M9.5 8V6.6a2.5 2.5 0 015 0V8"/>',
+  doc:'<path d="M7 4h7l4 4v12H7z"/><path d="M13.5 4v4.5H18"/><path d="M10 13h5M10 16h5"/>',
+  exam:'<path d="M6 4h8l4 4v9.5"/><path d="M13.5 4v4.5H18"/><path d="M9 12h4M9 15h3"/><path d="M13.8 19.6l5.4-5.4 1.6 1.6-5.4 5.4-2.1.5z"/>',
+  gear:'<circle cx="12" cy="12" r="3.2"/><path d="M12 4v2M12 18v2M4 12h2M18 12h2M6.6 6.6l1.4 1.4M16 16l1.4 1.4M17.4 6.6L16 8M8 16l-1.4 1.4"/>'
+};
+function icon(name, cls){
+  return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" '+
+    (cls?('class="'+cls+'" '):'')+'aria-hidden="true">'+(P[name]||P.info)+'</svg>';
+}
+
+/* ---------------------------------------------------------------
+   7. 演出（3Dで手前に飛び出す数字 / 光の粒 / 判定フラッシュ）
+   --------------------------------------------------------------- */
+var fx=$('fx');
+
+/* --- PRO: 微細アニメーション用の共通ヘルパー --- */
+/* 数値をなめらかに数え上げる（layoutを動かさずtextContentのみ更新） */
+function countUp(el, to, dur){
+  if(!el) return;
+  var txt=String(el.textContent||'');
+  var from=parseInt(txt.replace(/[^0-9-]/g,''),10);
+  if(isNaN(from)) from=0;
+  var suffix=/%$/.test(txt)?'%':'';
+  if(!MOTION() || from===to){ el.textContent=to+suffix; return; }
+  var t0=performance.now(); dur=dur||760;
+  (function loop(now){
+    var p=clamp((now-t0)/dur,0,1), e=1-Math.pow(1-p,3);
+    el.textContent=Math.round(from+(to-from)*e)+suffix;
+    if(p<1) requestAnimationFrame(loop);
+  })(t0);
+}
+/* 子要素を順番に立ち上げる（stagger） */
+function stagger(nodes, step, base){
+  if(!MOTION()) return;
+  step=step||42; base=base||0;
+  [].forEach.call(nodes, function(el,i){
+    el.classList.remove('rise');
+    el.style.animationDelay=(base+i*step)+'ms';
+    void el.offsetWidth;
+    el.classList.add('rise');
+    el.addEventListener('animationend', function(){ el.classList.remove('rise'); el.style.animationDelay=''; }, {once:true});
+  });
+}
+/* タブの選択インジケータを実測して追従させる */
+function moveTabInd(){
+  var t=document.querySelector('.tab[aria-selected="true"]'), ind=$('tabInd');
+  if(!t || !ind) return;
+  ind.style.width=t.offsetWidth+'px';
+  ind.style.transform='translate3d('+t.offsetLeft+'px,0,0)';
+}
+window.addEventListener('resize', moveTabInd);
+window.addEventListener('orientationchange', function(){ setTimeout(moveTabInd, 260); });
+
+function fxXP(text, ng){
+  var d=document.createElement('div');
+  d.className='xp-pop'+(ng?' ng':'');
+  /* 残像レイヤーを1枚重ねて飛び出しに速度感を与える */
+  d.innerHTML='<span class="trail" aria-hidden="true">'+esc(text)+'</span>'+esc(text);
+  fx.appendChild(d);
+  setTimeout(function(){ d.remove(); }, 1300);
+}
+function fxFlash(ok){
+  var d=document.createElement('div');
+  d.className='flash'+(ok?'':' ng');
+  fx.appendChild(d);
+  setTimeout(function(){ d.remove(); }, 560);
+}
+function fxLevelUp(level){
+  haptic(HAP.level);
+  var wrap=document.createElement('div');
+  wrap.className='lvup';
+  var html='<div class="plate2"><div class="k">LEVEL UP</div><div class="v">Lv '+level+'</div><div class="d">やわらかく積み上がっています</div></div>';
+  if(MOTION()){
+    html+='<span class="shock"></span><span class="shock" style="animation-delay:.22s"></span>';
+    /* 大小の粒を奥行き違いで散らし、被写界深度のある広がりにする */
+    for(var i=0;i<22;i++){
+      var a=(Math.PI*2/22)*i + Math.random()*0.22, r=76+Math.random()*104;
+      html+='<span class="spark'+(i%4===0?' big':'')+'" style="--dx:'+Math.round(Math.cos(a)*r)+'px;--dy:'+
+        Math.round(Math.sin(a)*r*0.82)+'px;--dz:'+Math.round(40+Math.random()*220)+'px;animation-delay:'+(i*22)+
+        'ms;animation-duration:'+Math.round(1300+Math.random()*600)+'ms"></span>';
+    }
+  }
+  wrap.innerHTML=html;
+  fx.appendChild(wrap);
+  setTimeout(function(){ wrap.remove(); }, 2100);
+}
+function toast(msg, ic){
+  var w=$('toastWrap');
+  var d=document.createElement('div');
+  d.className='toast';
+  d.innerHTML=icon(ic||'star')+'<span>'+esc(msg)+'</span>';
+  w.appendChild(d);
+  setTimeout(function(){ d.classList.add('out'); setTimeout(function(){ d.remove(); }, 320); }, 2400);
+}
+
+/* ---------------------------------------------------------------
+   8. 上部インジケータ・ホーム・実績の描画
+   --------------------------------------------------------------- */
+function renderTop(){
+  var li=levelInfo(S.xp);
+  $('lvlNum').textContent='Lv '+li.level;
+  $('xpFill').style.width=Math.round(li.cur/li.need*100)+'%';
+  $('xpText').textContent=li.cur+'/'+li.need;
+  $('streakText').textContent=shownStreak()+'日';
+  var cb=$('comboBadge');
+  if(combo>=2){
+    cb.classList.add('on');
+    $('comboText').textContent=combo+' x'+comboMult().toFixed(1);
+    if(MOTION() && cb.dataset.c!==String(combo)){ cb.classList.remove('beat'); void cb.offsetWidth; cb.classList.add('beat'); }
+    cb.dataset.c=String(combo);
+  }else{ cb.classList.remove('on'); cb.dataset.c=''; }
+}
+var TIPS=[
+  'カードは右スワイプで「わかる」、左で「わからない」。ボタンでも同じ操作ができます。',
+  '上にスワイプすると例文シートが開きます。タップで裏返し。',
+  '思い出せなくても大丈夫。間隔反復が、忘れかけた頃にもう一度出します。',
+  '5分だけでも意味があります。短くても、続けたほうが定着します。',
+  'スペル入力は+15XP。手で書くと記憶に残りやすいです。'
+];
+function renderHome(){
+  ensureDay();
+  var h=new Date().getHours();
+  $('greet').textContent = h<5?'静かな夜です' : h<11?'おはようございます' : h<17?'こんにちは' : h<22?'こんばんは' : 'おつかれさまです';
+  var done=Object.keys(S.daily.ids).length, goal=S.daily.goal;
+  $('todayLine').textContent = done===0 ? 'きょうも、1語からいきましょう。' : 'きょうは '+done+' 語にふれました。';
+  countUp($('dCount'), done, 900);
+  $('dCap').textContent='/ '+goal+' 語（今日）';
+  var c=2*Math.PI*84, ratio=clamp(done/goal,0,1);
+  var bar=$('dringBar');
+  bar.setAttribute('stroke-dasharray', c.toFixed(1));
+  bar.setAttribute('stroke-dashoffset', (c*(1-ratio)).toFixed(1));
+  $('dringImg').setAttribute('aria-label','デイリーゴール '+done+' / '+goal+' 語');
+  var st=shownStreak();
+  $('streakLine').textContent = st>=2 ? (st+'日つづいています。いい流れです。')
+    : st===1 ? 'きょうの分がはじまりました。'
+    : 'またここから始めよう。いつでも大丈夫。';
+  countUp($('sNew'), countStatus('new'), 700);
+  countUp($('sLearn'), countStatus('learning'), 700);
+  countUp($('sMaster'), countStatus('mastered'), 700);
+  renderStore();
+  $('tipLine').textContent=TIPS[new Date().getDate()%TIPS.length];
+}
+function renderStats(){
+  var li=levelInfo(S.xp);
+  countUp($('stLevel'), li.level, 620);
+  countUp($('stXP'), S.xp, 900);
+  countUp($('stAns'), S.stats.answers, 820);
+  countUp($('stAcc'), (S.stats.answers? Math.round(S.stats.correct/S.stats.answers*100):0), 820);
+  countUp($('stCombo'), S.best.combo||0, 620);
+  $('statsSub').textContent='習得 '+countStatus('mastered')+' 語 / 全 '+WORDS.length+' 語';
+
+  // 週間サマリー（7日分の獲得XP）
+  var days=[], max=10;
+  for(var i=6;i>=0;i--){ var k=dayOffset(-i); var v=S.history[k]||0; max=Math.max(max,v); days.push({k:k, v:v, i:i}); }
+  var W=['日','月','火','水','木','金','土'];
+  $('chart').innerHTML=days.map(function(d){
+    var dt=new Date(d.k.replace(/-/g,'/'));
+    var hh=Math.max(4, Math.round(d.v/max*104));
+    return '<div class="bar-col"><span class="bar-val">'+(d.v||'')+'</span>'+
+      '<span class="bar'+(d.i===0?' today':'')+'" style="height:'+hh+'px"></span>'+
+      '<span class="bar-lab">'+W[dt.getDay()]+'</span></div>';
+  }).join('');
+
+  // バッジ（獲得＝立体的 / 未獲得＝すりガラス越しのシルエット）
+  $('badgeGrid').innerHTML=BADGES.map(function(b){
+    var got=!!S.badges[b.id];
+    return '<div class="badge '+(got?'got':'lock')+'"><div class="ic">'+icon(b.ic)+'</div><b>'+esc(b.n)+'</b><span>'+esc(got?b.d:'未獲得')+'</span></div>';
+  }).join('');
+  stagger($('chart').children, 46);
+  stagger($('badgeGrid').children, 34, 130);
+}
+
+/* ---------------------------------------------------------------
+   9. ビュー切り替え
+   --------------------------------------------------------------- */
+var VIEWS=['home','study','book','stats'];
+function showView(name){
+  VIEWS.forEach(function(v){ $('view-'+v).classList.toggle('active', v===name); });
+  [].forEach.call(document.querySelectorAll('.tab'), function(t){
+    t.setAttribute('aria-selected', String(t.dataset.view===name));
+  });
+  /* 奥から手前へ持ち上がる画面遷移（transform / opacity のみ） */
+  var vv=$('view-'+name);
+  if(MOTION()){
+    vv.classList.remove('enter'); void vv.offsetWidth; vv.classList.add('enter');
+    vv.addEventListener('animationend', function(){ vv.classList.remove('enter'); }, {once:true});
+  }
+  moveTabInd();
+  if(name==='home'){ renderHome(); stagger($('view-home').querySelector('.scroll').children, 54); }
+  if(name==='stats') renderStats();
+  if(name==='book') renderBook();
+  haptic(HAP.tap);
+}
+[].forEach.call(document.querySelectorAll('.tab'), function(t){
+  t.addEventListener('click', function(){ showView(t.dataset.view); });
+});
+
+/* ---------------------------------------------------------------
+   10. 学習メニュー
+   --------------------------------------------------------------- */
+var MODES=[
+  {id:'card', n:'単語カード', d:'スワイプで自己採点。まず全体をつかむ', ic:'flip'},
+  {id:'quiz_en', n:'4択（英→和）', d:'意味をすばやく選ぶ', ic:'check'},
+  {id:'quiz_ja', n:'4択（和→英）', d:'意味から単語を思い出す', ic:'up'},
+  {id:'spell', n:'スペル入力', d:'綴りまで固める（+15XP）', ic:'pen'},
+  {id:'mix', n:'ミックス', d:'4種を混ぜて総合的に', ic:'star'},
+  /* 追加コンテンツ（Word Plus）で解放されるモード */
+  {id:'reading', n:'長文読解', d:'長文3本と文章題24問', ic:'doc', plus:true},
+  /* 共通テスト対策キット（専用ページへ移動する外部モード・学習履歴は独立） */
+  {id:'exam', n:'共通テスト対策', d:'長文3本・全10問（小問22）／専用ページ', ic:'exam', ext:true}
+];
+var cfg={mode:'card', levels:['beginner'], n:10};
+function renderMenu(){
+  $('modeList').innerHTML=MODES.map(function(m){
+    var locked=!!(m.plus && !hasPlus()) || !!(m.ext && !hasExam());
+    var on=cfg.mode===m.id && !locked && !m.ext;
+    var chip='';
+    if(m.ext) chip = locked? '<span class="lock-chip">'+yen(EXAM.price)+'</span>' : '<span class="lock-chip">購入済み</span>';
+    else if(locked) chip = '<span class="lock-chip">Word Plus</span>';
+    else if(m.plus) chip = '<span class="lock-chip">購入済み</span>';
+    return '<button class="btn glass" data-mode="'+m.id+'" data-locked="'+(locked?'1':'')+'" data-ext="'+(m.ext?'1':'')+'" aria-pressed="'+on+'" '+
+      'style="justify-content:flex-start;text-align:left;min-height:62px;'+(on?'box-shadow:var(--shadow), inset 0 0 0 2px var(--accent);':'')+'">'+
+      '<span style="width:26px;color:var(--accent-ink)">'+icon(m.ic)+'</span>'+
+      '<span><b style="display:block;font-size:.98rem">'+m.n+'</b><span class="tiny">'+m.d+'</span></span>'+
+      chip+'</button>';
+  }).join('');
+  [].forEach.call($('modeList').children, function(b){
+    b.addEventListener('click', function(){
+      var ext=!!b.dataset.ext;
+      if(b.dataset.locked){ haptic(HAP.tap); openStoreSheet(ext? EXAM : PLUS); return; }
+      if(ext){ haptic(HAP.tap); location.href='exam.html'; return; }
+      cfg.mode=b.dataset.mode; haptic(HAP.tap); renderMenu();
+    });
+  });
+  /* Word Plus 未購入の間は Plus レベルを選べないようにする */
+  if(!hasPlus()){
+    var pi=cfg.levels.indexOf('plus');
+    if(pi>=0) cfg.levels.splice(pi,1);
+    if(!cfg.levels.length) cfg.levels=['beginner'];
+  }
+  var lvKeys=Object.keys(LV_JA).filter(function(lv){ return lv!=='plus' || hasPlus(); });
+  $('lvPicks').innerHTML=lvKeys.map(function(lv){
+    return '<button class="pill" data-lv="'+lv+'" aria-pressed="'+(cfg.levels.indexOf(lv)>=0)+'" style="flex:1">'+LV_JA[lv]+'</button>';
+  }).join('');
+  [].forEach.call($('lvPicks').children, function(b){
+    b.addEventListener('click', function(){
+      var lv=b.dataset.lv, i=cfg.levels.indexOf(lv);
+      if(i>=0){ if(cfg.levels.length>1) cfg.levels.splice(i,1); } else cfg.levels.push(lv);
+      haptic(HAP.tap); renderMenu();
+    });
+  });
+  $('countPicks').innerHTML=[5,10,20].map(function(n){
+    return '<button class="pill" data-n="'+n+'" aria-pressed="'+(cfg.n===n)+'" style="flex:1">'+n+'問</button>';
+  }).join('');
+  [].forEach.call($('countPicks').children, function(b){
+    b.addEventListener('click', function(){ cfg.n=Number(b.dataset.n); haptic(HAP.tap); renderMenu(); });
+  });
+}
+
+/* ---------------------------------------------------------------
+   11. セッション本体
+   --------------------------------------------------------------- */
+var sess=null;
+function startSession(opt){
+  /* 長文読解は別フロー（長文選択へ） */
+  if((opt.mode||cfg.mode)==='reading'){ openPassagePicker(); return; }
+  var levels=opt.levels||cfg.levels, n=opt.n||cfg.n;
+  var q=buildQueue({levels:levels, n:n, weak:!!opt.weak});
+  if(!q.length){
+    openModal('<h2 class="h1" style="margin-top:2px">対象の単語がありません</h2>'+
+      '<p class="sub">'+(opt.weak?'まだ苦手として記録された単語はありません。まずは通常の学習からどうぞ。':'レベルを選び直してください。')+'</p>'+
+      '<button class="btn btn-primary" data-close="1">とじる</button>');
+    return;
+  }
+  combo=0; comboBest=0; rs=null;
+  sess={mode:opt.mode||cfg.mode, q:q, i:0, xp:0, ok:0, done:0, weak:!!opt.weak, answered:false};
+  $('sessBody').classList.remove('scrolly');
+  $('studyMenu').style.display='none';
+  $('session').style.display='flex';
+  showView('study');
+  renderStep();
+}
+function endSessionToMenu(){
+  sess=null; rs=null;
+  var b=$('sessBody'); if(b) b.classList.remove('scrolly');
+  $('session').style.display='none';
+  $('studyMenu').style.display='flex';
+  renderMenu(); renderTop();
+}
+function stepMode(){
+  if(sess.mode!=='mix') return sess.mode;
+  return ['card','quiz_en','spell','quiz_ja'][sess.i%4];
+}
+function renderStep(){
+  if(!sess) return;
+  if(sess.i>=sess.q.length){ renderSummary(); return; }
+  var m=stepMode();
+  $('sessCount').textContent=(sess.i+1)+' / '+sess.q.length;
+  $('sessProg').style.width=Math.round(sess.i/sess.q.length*100)+'%';
+  var names={card:'単語カード', quiz_en:'4択 英→和', quiz_ja:'4択 和→英', spell:'スペル入力'};
+  $('sessMode').textContent=names[m]+(sess.weak?'・苦手':'');
+  sess.answered=false;
+  if(m==='card') renderCardStep();
+  else if(m==='spell') renderSpellStep();
+  else renderQuizStep(m);
+  renderTop();
+}
+
+/* ---- 共通の採点処理 ---- */
+function answer(ok, base){
+  if(!sess||sess.answered) return;
+  sess.answered=true;
+  var id=sess.q[sess.i];
+  touchDay(); addDaily(id);
+  S.stats.answers++;
+  if(ok){
+    S.stats.correct++;
+    combo++; comboBest=Math.max(comboBest,combo);
+    S.best.combo=Math.max(S.best.combo||0, combo);
+  }else{
+    combo=0;
+  }
+  var bonus=grade(id, ok);
+  var gain=0;
+  if(ok){
+    gain=Math.round(base*comboMult())+bonus;
+    sess.ok++;
+  }
+  sess.xp+=gain;
+  haptic(ok?HAP.ok:HAP.ng);
+  fxFlash(ok);
+  if(gain>0) addXP(gain);
+  else { save(); renderTop(); }
+  if(bonus>0) setTimeout(function(){ toast('「'+BY_ID[id].w+'」を習得（+30XP）','check'); }, 300);
+  checkBadges();
+}
+function nextStep(){
+  if(!sess) return;
+  sess.i++; sess.done++;
+  renderStep();
+}
+
+/* ---- ①単語カード（3Dデッキ + スワイプ） ---- */
+/* 英単語を1文字ずつのレイヤーにして順に立ち上がらせる（読みは常に正面） */
+function splitWord(s){
+  return String(s).split('').map(function(ch,i){
+    return '<span class="ch" style="--i:'+i+'">'+(ch===' '?'&nbsp;':esc(ch))+'</span>';
+  }).join('');
+}
+function faceFront(w){
+  return '<div class="face front glass">'+
+    '<span class="rim-light"></span><span class="sheen"><i></i></span>'+
+    '<span class="pos lyr l-pos">'+esc(w.pos)+' ・ '+LV_JA[w.lv]+'</span>'+
+    '<div class="word lyr l-word" aria-label="'+esc(w.w)+'">'+splitWord(w.w)+'</div>'+
+    '<div class="ipa lyr l-ipa">'+esc(w.ipa)+'</div>'+
+    '<div class="face-hint lyr l-hint">タップで意味 ／ 上スワイプで例文</div></div>';
+}
+function faceBack(w){
+  return '<div class="face back glass">'+
+    '<span class="rim-light"></span><span class="sheen"><i></i></span>'+
+    '<span class="pos lyr l-pos">'+esc(w.pos)+'</span>'+
+    '<div class="mean lyr l-mean">'+esc(w.ja)+'</div>'+
+    '<div class="plate-box lyr l-ex"><div class="ex-en">'+esc(w.en)+'</div>'+
+    '<div class="ex-ja" style="margin-top:6px">'+esc(w.jaEx)+'</div></div>'+
+    '<div class="face-hint lyr l-hint">右へ「わかる」／ 左へ「わからない」</div></div>';
+}
+function cardEl(w){
+  var el=document.createElement('article');
+  el.className='card fresh';
+  el.dataset.id=w.id;
+  /* 側面を9層に分け、光の減衼を段階的にして「塵」に見せる */
+  var slabs='';
+  [6,4.5,3,1.5,0,-1.5,-3,-4.5,-6].forEach(function(z,i){
+    slabs+='<div class="slab" style="transform:translateZ('+z+'px);opacity:'+(1-i*0.075).toFixed(3)+'"></div>';
+  });
+  el.innerHTML='<div class="card-shadow"></div>'+
+    '<div class="card3d">'+slabs+faceFront(w)+faceBack(w)+'</div>'+
+    '<div class="tag know">わかる</div><div class="tag no">わからない</div>';
+  return el;
+}
+/* 奥への並び：Zを深くとり、わずかな回転を添えて手累みの表情を出す */
+function deckTransform(i){
+  var t=[[0,0,1,0],[-12,-66,.958,-.7],[-21,-132,.918,.6],[-28,-194,.878,-.45]][i]||[-33,-240,.845,.3];
+  return 'translate3d(0,'+t[0]+'px,'+t[1]+'px) scale('+t[2]+') rotateZ('+t[3]+'deg)';
+}
+function syncDeck(){
+  var deck=$('deck'); if(!deck) return;
+  [].forEach.call(deck.children, function(el,i){
+    el.dataset.depth=i;
+    el.classList.toggle('bg-card', i>0);
+    el.style.transform=deckTransform(i);
+    el.style.opacity = MOTION() ? [1,.96,.86,.68][i] || 0 : (i===0?1:0);
+    /* 奥のカードに微少なぼかし（被写界深度）。手前に来たら解除 */
+    el.style.filter = (MOTION() && i>0) ? 'blur('+(i*0.7).toFixed(1)+'px)' : 'none';
+    el.style.zIndex=String(50-i);
+    el.style.pointerEvents = i===0? 'auto':'none';
+    el.setAttribute('aria-hidden', i===0? 'false':'true');
+  });
+}
+function renderCardStep(){
+  var body=$('sessBody');
+  var deck=$('deck');
+  /* すでに手前のカードが正しければデッキは作り直さない（せり上がる動きを保つ） */
+  var keep = deck && deck.firstElementChild && deck.firstElementChild.dataset.id===sess.q[sess.i];
+  if(!keep){
+    body.innerHTML='<div class="deck-tilt" id="deckTilt"><div class="deck" id="deck"></div></div>';
+    deck=$('deck');
+    for(var k=0;k<4;k++){
+      var id=sess.q[sess.i+k];
+      if(!id) break;
+      deck.appendChild(cardEl(BY_ID[id]));
+    }
+    syncDeck();
+    bindCardGestures();
+    /* デッキの登場：奥から順にせり上がる */
+    if(MOTION()){
+      [].forEach.call(deck.children, function(el,i){
+        el.style.animationDelay=(i*70)+'ms';
+        el.classList.add('enter');
+        el.addEventListener('animationend', function(){ el.classList.remove('enter'); el.style.animationDelay=''; }, {once:true});
+      });
+    }
+  }
+  var w=BY_ID[sess.q[sess.i]];
+  if(S.settings.autoSpeak) speak(w.w);
+  $('sessActions').innerHTML=
+    '<div class="btn-row-3">'+
+      '<button class="btn btn-sm glass btn-ng" id="btnNo">'+icon('x')+'わからない</button>'+
+      '<button class="btn icon-btn glass" id="btnFlip" aria-label="カードを裏返す">'+icon('flip')+'</button>'+
+      '<button class="btn btn-sm glass btn-ok" id="btnYes">'+icon('check')+'わかる</button>'+
+    '</div>'+
+    '<div class="btn-row-3">'+
+      '<button class="btn btn-ghost glass" id="btnSpeak">'+icon('speak')+'読み上げ</button>'+
+      '<button class="btn icon-btn glass" id="btnDetail" aria-label="詳細を開く">'+icon('up')+'</button>'+
+      '<button class="btn btn-ghost glass" id="btnQuit">セッション終了</button>'+
+    '</div>';
+  $('btnNo').addEventListener('click', function(){ flyCard(-1); });
+  $('btnYes').addEventListener('click', function(){ flyCard(1); });
+  $('btnFlip').addEventListener('click', function(){ flipTop(); });
+  $('btnSpeak').addEventListener('click', function(){ speak(BY_ID[sess.q[sess.i]].w); haptic(HAP.tap); });
+  $('btnDetail').addEventListener('click', function(){ openWordSheet(sess.q[sess.i]); });
+  $('btnQuit').addEventListener('click', function(){ endSessionToMenu(); });
+}
+function topCard(){ var d=$('deck'); return d? d.firstElementChild : null; }
+function flipTop(){
+  var c=topCard(); if(!c) return;
+  c.classList.remove('fresh');   /* 初回描画時に回転しないようにしていたロックを解除 */
+  c.classList.toggle('flip');
+  haptic(HAP.tap);
+  if(c.classList.contains('flip') && S.settings.autoSpeak){
+    var w=BY_ID[c.dataset.id];
+    setTimeout(function(){ speak(w.en); }, 240);
+  }
+}
+/* カードを飛ばして次へ（dir: 1=わかる / -1=わからない） */
+function flyCard(dir){
+  var c=topCard(); if(!c || sess.answered) return;
+  answer(dir>0, 10);
+  c.style.transition='transform .46s cubic-bezier(.2,.72,.2,1), opacity .42s ease, filter .42s ease';
+  c.classList.remove('drag');
+  if(MOTION()){
+    /* 弧を描いて手前に抜けていく（少しぼかして速度感を出す） */
+    c.style.transform='translate3d('+(dir*530)+'px,-76px,150px) rotateZ('+(dir*24)+'deg) rotateY('+(dir*-14)+'deg)';
+    c.style.filter='blur(2px)';
+  }
+  c.style.opacity='0';
+  setTimeout(function(){
+    if(c.parentNode) c.remove();
+    // 奥のカードを1枚補充してせり上がらせる
+    var deck=$('deck');
+    if(deck){
+      var nid=sess.q[sess.i+4];
+      if(nid) deck.appendChild(cardEl(BY_ID[nid]));
+      syncDeck();
+    }
+    nextStep();
+  }, MOTION()?330:120);
+}
+/* スワイプ / タップ / 上スワイプ のジェスチャー */
+function bindCardGestures(){
+  var deck=$('deck'); if(!deck) return;
+  var st=null;
+  deck.addEventListener('pointerdown', function(e){
+    var c=topCard(); if(!c || sess.answered) return;
+    if(!c.contains(e.target)) return;
+    st={x:e.clientX, y:e.clientY, t:Date.now(), moved:false, c:c};
+    c.classList.add('drag');
+    try{ c.setPointerCapture(e.pointerId); }catch(err){}
+  });
+  deck.addEventListener('pointermove', function(e){
+    if(!st) return;
+    var dx=e.clientX-st.x, dy=e.clientY-st.y;
+    if(Math.abs(dx)>6||Math.abs(dy)>6) st.moved=true;
+    if(MOTION()){
+      /* 指に追従：平行移動＋Z持ち上げ＋3軸のわずかな回転。光沢と接地影も同時に動かす */
+      var rz=dx*0.05, rx=clamp(-dy*0.045,-9,9), ry=clamp(dx*0.05,-12,12);
+      st.c.style.transform='translate3d('+dx+'px,'+(dy*0.55)+'px,48px) rotateZ('+rz.toFixed(2)+'deg) rotateX('+rx.toFixed(2)+'deg) rotateY('+ry.toFixed(2)+'deg)';
+      st.c.style.setProperty('--gx', clamp(30+dx*0.16,2,96).toFixed(1)+'%');
+      st.c.style.setProperty('--gy', clamp(2+dy*0.12,-10,64).toFixed(1)+'%');
+      var sh=st.c.querySelector('.card-shadow');
+      if(sh){
+        sh.style.transition='none';
+        sh.style.transform='translateZ(-40px) translate3d('+(-dx*0.14).toFixed(1)+'px,'+(Math.abs(dy)*0.06+5).toFixed(1)+'px,0) scale('+(1+Math.abs(dx)/900).toFixed(3)+')';
+        sh.style.opacity=String(clamp(1-Math.abs(dx)/700,.35,1));
+      }
+    }
+    var k=st.c.querySelector('.tag.know'), n=st.c.querySelector('.tag.no');
+    k.style.opacity=String(clamp(dx/90,0,1));
+    n.style.opacity=String(clamp(-dx/90,0,1));
+  });
+  function up(e){
+    if(!st) return;
+    var c=st.c, dx=e.clientX-st.x, dy=e.clientY-st.y, quick=Date.now()-st.t<260;
+    var moved=st.moved; st=null;
+    c.classList.remove('drag');
+    c.style.transition='';
+    var k=c.querySelector('.tag.know'), n=c.querySelector('.tag.no');
+    /* 離したときはバネで戻る（わずかな行き過ぎをつける） */
+    function reset(){
+      c.style.transition='transform .54s cubic-bezier(.22,1.28,.36,1)';
+      c.style.transform=deckTransform(0);
+      c.style.removeProperty('--gx'); c.style.removeProperty('--gy');
+      var sh=c.querySelector('.card-shadow');
+      if(sh){ sh.style.transition=''; sh.style.transform='translateZ(-40px)'; sh.style.opacity=''; }
+      if(k)k.style.opacity='0'; if(n)n.style.opacity='0';
+    }
+    if(!moved){ reset(); flipTop(); return; }               // タップ＝裏返す
+    if(dy<-70 && Math.abs(dx)<60){ reset(); haptic(HAP.swipe); openWordSheet(c.dataset.id); return; } // 上スワイプ＝詳細
+    if(Math.abs(dx)>90 || (quick && Math.abs(dx)>52)){ haptic(HAP.swipe); flyCard(dx>0?1:-1); return; }
+    reset();
+  }
+  deck.addEventListener('pointerup', up);
+  deck.addEventListener('pointercancel', function(){
+    if(!st) return;
+    var c=st.c; st=null;
+    c.classList.remove('drag');
+    c.style.transition='transform .54s cubic-bezier(.22,1.28,.36,1)';
+    c.style.transform=deckTransform(0);
+    c.style.removeProperty('--gx'); c.style.removeProperty('--gy');
+    var sh=c.querySelector('.card-shadow');
+    if(sh){ sh.style.transition=''; sh.style.transform='translateZ(-40px)'; sh.style.opacity=''; }
+    var k=c.querySelector('.tag.know'), n=c.querySelector('.tag.no');
+    if(k)k.style.opacity='0'; if(n)n.style.opacity='0';
+  });
+}
+
+/* ---- ②4択クイズ ---- */
+function distractors(w, key){
+  var same=WORDS.filter(function(o){ return o.id!==w.id && o.lv===w.lv; });
+  var pool=same.length>=3? same : WORDS.filter(function(o){ return o.id!==w.id; });
+  shuffle(pool);
+  var out=[], used={};
+  used[w[key]]=1;
+  for(var i=0;i<pool.length && out.length<3;i++){
+    if(!used[pool[i][key]]){ used[pool[i][key]]=1; out.push(pool[i]); }
+  }
+  return out;
+}
+function renderQuizStep(mode){
+  var w=BY_ID[sess.q[sess.i]];
+  var enToJa = mode==='quiz_en';
+  var key = enToJa? 'ja':'w';
+  var opts=distractors(w,key).map(function(o){ return o[key]; });
+  opts.push(w[key]); shuffle(opts);
+  $('sessBody').innerHTML='<div class="q-pane glass">'+
+    '<div class="q-kicker">'+(enToJa?'この単語の意味は？':'この意味の単語は？')+'</div>'+
+    (enToJa
+      ? '<div class="word">'+esc(w.w)+'</div><div class="ipa" style="margin-top:6px">'+esc(w.ipa)+'</div>'
+      : '<div class="mean" style="font-size:1.5rem">'+esc(w.ja)+'</div><div class="tiny" style="margin-top:8px">'+esc(w.pos)+' ・ '+LV_JA[w.lv]+'</div>')+
+    '</div>';
+  if(enToJa && S.settings.autoSpeak) speak(w.w);
+  var letters=['A','B','C','D'];
+  $('sessActions').innerHTML=opts.map(function(o,i){
+    return '<button class="btn choice glass" data-v="'+esc(o)+'"><span class="no">'+letters[i]+'</span><span>'+esc(o)+'</span></button>';
+  }).join('')+'<button class="btn btn-ghost glass" id="btnQuit2" style="min-height:44px">セッション終了</button>';
+  stagger($('sessActions').children, 52);
+  [].forEach.call($('sessActions').querySelectorAll('.choice'), function(b){
+    b.addEventListener('click', function(){
+      if(sess.answered) return;
+      var ok = b.dataset.v===String(w[key]);
+      answer(ok, 10);
+      [].forEach.call($('sessActions').querySelectorAll('.choice'), function(x){
+        if(x.dataset.v===String(w[key])) x.classList.add('correct');
+        else if(x===b) x.classList.add('wrong');
+        else x.classList.add('dim');
+      });
+      if(!ok) setTimeout(function(){ speak(w.w); }, 200);
+      setTimeout(nextStep, ok?700:1300);
+    });
+  });
+  $('btnQuit2').addEventListener('click', endSessionToMenu);
+}
+
+/* ---- ③スペル入力 ---- */
+function renderSpellStep(){
+  var w=BY_ID[sess.q[sess.i]];
+  var hint=w.w.charAt(0)+w.w.slice(1).replace(/[a-zA-Z]/g,'_');
+  $('sessBody').innerHTML='<div class="q-pane glass">'+
+    '<div class="q-kicker">綴りを入力（+15XP）</div>'+
+    '<div class="mean" style="font-size:1.42rem">'+esc(w.ja)+'</div>'+
+    '<div class="tiny" style="margin:8px 0 12px">'+esc(w.pos)+' ・ '+esc(w.ipa)+'</div>'+
+    '<div class="spell-hint">'+esc(hint.split('').join(' '))+'</div>'+
+    '<div class="judge" id="judge" style="margin-top:10px"></div>'+
+    '</div>';
+  $('sessActions').innerHTML=
+    '<input class="spell-input" id="spellIn" type="text" inputmode="latin" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="englishword" aria-label="綴りを入力">'+
+    '<div class="btn-row"><button class="btn btn-sm glass" id="spellSkip">わからない</button>'+
+    '<button class="btn btn-primary btn-sm" id="spellGo">こたえる</button></div>'+
+    '<button class="btn btn-ghost glass" id="btnQuit3" style="min-height:44px">セッション終了</button>';
+  stagger($('sessActions').children, 56);
+  var inp=$('spellIn');
+  function judge(){
+    if(sess.answered) return;
+    var v=(inp.value||'').trim().toLowerCase();
+    var ok = v===w.w.toLowerCase();
+    answer(ok, 15);
+    if(ok) S.stats.spell++, save();
+    $('judge').textContent = ok? '正解！ '+w.w : '正解は '+w.w;
+    $('judge').className='judge '+(ok?'ok':'ng');
+    inp.blur(); inp.disabled=true;
+    speak(w.w);
+    setTimeout(nextStep, ok?900:1600);
+  }
+  $('spellGo').addEventListener('click', judge);
+  inp.addEventListener('keydown', function(e){ if(e.key==='Enter') judge(); });
+  $('spellSkip').addEventListener('click', function(){
+    if(sess.answered) return;
+    answer(false,15);
+    $('judge').textContent='正解は '+w.w; $('judge').className='judge ng';
+    inp.disabled=true; speak(w.w);
+    setTimeout(nextStep,1500);
+  });
+  $('btnQuit3').addEventListener('click', endSessionToMenu);
+}
+
+/* ---- ④セッション結果 ---- */
+function renderSummary(){
+  var total=sess.q.length, ok=sess.ok, xp=sess.xp, best=comboBest;
+  var acc=Math.round(ok/total*100);
+  $('sessCount').textContent=total+' / '+total;
+  $('sessProg').style.width='100%';
+  $('sessMode').textContent='おつかれさま';
+  $('sessBody').innerHTML='<div class="q-pane glass">'+
+    '<div class="q-kicker">SESSION COMPLETE</div>'+
+    '<div style="font-size:2.6rem;font-weight:800;line-height:1.1">+'+xp+' <span style="font-size:1rem">XP</span></div>'+
+    '<div class="tiny" style="margin:10px 0 14px">正解 '+ok+' / '+total+'（'+acc+'%）・最高コンボ '+best+'</div>'+
+    '<div class="stat-grid"><div class="stat"><b>'+countStatus('new')+'</b><span>未学習</span></div>'+
+    '<div class="stat"><b>'+countStatus('learning')+'</b><span>学習中</span></div>'+
+    '<div class="stat"><b>'+countStatus('mastered')+'</b><span>習得済み</span></div></div></div>';
+  $('sessActions').innerHTML=
+    '<button class="btn btn-primary" id="againBtn">もう1セッション</button>'+
+    '<div class="btn-row"><button class="btn btn-sm glass" id="toHome">ホームへ</button>'+
+    '<button class="btn btn-sm glass" id="toMenu">メニューへ</button></div>';
+  var opt={mode:sess.mode, levels:cfg.levels, n:cfg.n, weak:sess.weak};
+  $('againBtn').addEventListener('click', function(){ startSession(opt); });
+  $('toHome').addEventListener('click', function(){ endSessionToMenu(); showView('home'); });
+  $('toMenu').addEventListener('click', endSessionToMenu);
+  checkBadges(); renderTop();
+}
+
+/* ---------------------------------------------------------------
+   12. 単語帳（リスト / 3Dリング）
+   --------------------------------------------------------------- */
+var book={q:'', lv:'all', ring:false};
+function filteredWords(){
+  var q=book.q.trim().toLowerCase();
+  return activeWords().filter(function(w){
+    if(book.lv!=='all' && w.lv!==book.lv) return false;
+    if(book.lv==='weak' && !isWeak(w)) return false;
+    if(!q) return true;
+    return w.w.toLowerCase().indexOf(q)>=0 || w.ja.indexOf(q)>=0 || w.ja.toLowerCase().indexOf(q)>=0;
+  });
+}
+function renderBook(){
+  var list=filteredWords();
+  $('bookSub').textContent=list.length+' 語を表示中（全'+activeWords().length+'語）';
+  var filters=[['all','すべて'],['beginner','初級'],['intermediate','中級'],['advanced','上級']];
+  if(hasPlus()) filters.push(['plus','Plus']);
+  filters.push(['weak','苦手']);
+  $('bookFilter').innerHTML=
+    filters.map(function(p){
+      return '<button class="pill" data-f="'+p[0]+'" aria-pressed="'+(book.lv===p[0])+'" style="flex:1;padding:8px 6px;font-size:.8rem">'+p[1]+'</button>';
+    }).join('');
+  [].forEach.call($('bookFilter').children, function(b){
+    b.addEventListener('click', function(){ book.lv=b.dataset.f; haptic(HAP.tap); renderBook(); });
+  });
+  if(book.ring){
+    $('bookList').style.display='none';
+    $('ringView').style.display='block';
+    $('ringNav').style.display='grid';
+    $('viewToggle').textContent='リスト表示に切り替える';
+    buildRing(list);
+  }else{
+    $('bookList').style.display='flex';
+    $('ringView').style.display='none';
+    $('ringNav').style.display='none';
+    $('viewToggle').textContent='3Dリング表示に切り替える';
+    $('bookList').innerHTML = list.length? list.map(function(w){
+      var st=statusOf(w.id);
+      return '<button class="wrow" data-id="'+w.id+'">'+
+        '<span class="dot '+st+'" aria-hidden="true"></span>'+
+        '<span style="flex:1;min-width:0"><b>'+esc(w.w)+'</b><span class="tiny"> '+esc(w.ipa)+'</span>'+
+        '<span class="m">'+esc(w.pos)+' '+esc(w.ja)+'</span></span>'+
+        '<span style="color:var(--accent-ink);width:22px">'+icon('up')+'</span></button>';
+    }).join('') : '<p class="tiny" style="text-align:center;padding:24px">該当する単語がありません。</p>';
+    [].forEach.call($('bookList').children, function(b){
+      if(b.dataset && b.dataset.id) b.addEventListener('click', function(){ openWordSheet(b.dataset.id); });
+    });
+  }
+}
+/* 3Dリング（円筒配置。文字は常に正面を向くよう逆回転させて可読性を確保） */
+var ring={items:[], rot:0, step:0, R:250};
+function buildRing(list){
+  ring.items=list.slice(0,12);
+  ring.step=360/Math.max(ring.items.length,1);
+  ring.rot=0;
+  var host=$('ring3d');
+  if(!MOTION()){
+    // モーション低減時は3D回転せず、縦に並べた読みやすい表示にする
+    $('ringStage').style.height='auto';
+    $('ringStage').style.overflow='visible';
+    host.style.position='static';
+    host.innerHTML=ring.items.map(function(w){
+      return '<div class="ring-face glass" style="position:static;margin-bottom:8px">'+
+        '<div class="rw">'+esc(w.w)+'</div><div class="rm">'+esc(w.ja)+'</div><div class="tiny">'+esc(w.ipa)+'</div></div>';
+    }).join('');
+    return;
+  }
+  $('ringStage').style.height='300px';
+  $('ringStage').style.overflow='hidden';
+  host.style.position='absolute';
+  host.innerHTML=ring.items.map(function(w,i){
+    return '<div class="ring-item" data-i="'+i+'"><div class="ring-face glass">'+
+      '<div class="rw">'+esc(w.w)+'</div><div class="rm">'+esc(w.ja)+'</div>'+
+      '<div class="tiny">'+esc(w.ipa)+' ・ '+esc(w.pos)+'</div></div></div>';
+  }).join('');
+  layoutRing();
+}
+function layoutRing(){
+  if(!MOTION()) return;
+  var host=$('ring3d'); if(!host) return;
+  host.style.transform='translateZ(-'+ring.R+'px) rotateY('+ring.rot+'deg)';
+  [].forEach.call(host.children, function(el,i){
+    var a=i*ring.step;
+    el.style.transform='rotateY('+a+'deg) translateZ('+ring.R+'px)';
+    var wa=((a+ring.rot)%360+360)%360; if(wa>180) wa-=360;
+    var f=Math.cos(wa*Math.PI/180);
+    var face=el.firstElementChild;
+    /* 文字は常に正面へ。手前の面だけわずかに大きくして焦点を作る */
+    face.style.transform='rotateY('+(-(a+ring.rot))+'deg) scale('+(0.9+0.1*Math.max(f,0)).toFixed(3)+')';
+    el.style.opacity = f>0.15? String(clamp(f,.25,1)) : '0';
+    el.style.zIndex=String(Math.round(f*100)+100);
+    el.style.pointerEvents = Math.abs(wa)<12? 'auto':'none';
+  });
+}
+function ringIndex(){
+  var n=ring.items.length; if(!n) return 0;
+  var i=Math.round(-ring.rot/ring.step)%n; if(i<0) i+=n;
+  return i;
+}
+function ringSnap(){
+  ring.rot=Math.round(ring.rot/ring.step)*ring.step;
+  layoutRing(); haptic(HAP.tap);
+}
+(function bindRing(){
+  var stage=$('ringStage'), st=null;
+  stage.addEventListener('pointerdown', function(e){ st={x:e.clientX, r:ring.rot, moved:false}; });
+  stage.addEventListener('pointermove', function(e){
+    if(!st) return;
+    var dx=e.clientX-st.x;
+    if(Math.abs(dx)>5) st.moved=true;
+    ring.rot=st.r+dx*0.36;
+    layoutRing();
+  });
+  function end(e){
+    if(!st) return;
+    var moved=st.moved; st=null;
+    if(moved) ringSnap();
+    else{
+      var w=ring.items[ringIndex()];
+      if(w) openWordSheet(w.id);
+    }
+  }
+  stage.addEventListener('pointerup', end);
+  stage.addEventListener('pointercancel', function(){ st=null; ringSnap(); });
+  $('ringPrev').addEventListener('click', function(){ ring.rot+=ring.step; layoutRing(); haptic(HAP.tap); });
+  $('ringNext').addEventListener('click', function(){ ring.rot-=ring.step; layoutRing(); haptic(HAP.tap); });
+  $('ringSpeak').addEventListener('click', function(){ var w=ring.items[ringIndex()]; if(w){ speak(w.w); haptic(HAP.tap); } });
+})();
+$('viewToggle').addEventListener('click', function(){ book.ring=!book.ring; haptic(HAP.tap); renderBook(); });
+$('searchInput').addEventListener('input', function(){ book.q=this.value; renderBook(); });
+
+/* ---------------------------------------------------------------
+   13. ボトムシート（詳細）/ モーダル
+   --------------------------------------------------------------- */
+function openOverlay(ov){
+  ov.hidden=false;
+  requestAnimationFrame(function(){ ov.classList.add('show'); });
+}
+function closeOverlay(ov){
+  ov.classList.remove('show');
+  setTimeout(function(){ ov.hidden=true; }, 320);
+}
+[$('sheetOv'), $('modalOv')].forEach(function(ov){
+  ov.addEventListener('click', function(e){
+    /* デモ購入の処理中は、途中で閉じられないようにする */
+    if(ov===$('sheetOv') && sheetLock) return;
+    if(e.target.dataset && e.target.dataset.close) closeOverlay(ov);
+  });
+});
+function openWordSheet(id){
+  var w=BY_ID[id], r=S.records[id]||{s:'new',seen:0,wrong:0,i:0};
+  var stJa={'new':'未学習','learning':'学習中','mastered':'習得済み'}[r.s||'new'];
+  var due = r.due? new Date(r.due) : null;
+  $('sheetBody').innerHTML=
+    '<div class="between" style="align-items:flex-start">'+
+      '<div><div class="word" style="font-size:1.9rem">'+esc(w.w)+'</div>'+
+      '<div class="ipa">'+esc(w.ipa)+'</div></div>'+
+      '<span class="pos">'+esc(w.pos)+' ・ '+LV_JA[w.lv]+'</span>'+
+    '</div>'+
+    '<div class="mean" style="margin:12px 0 10px">'+esc(w.ja)+'</div>'+
+    '<div style="background:var(--plate);border:1px solid var(--line);border-radius:20px;padding:14px">'+
+      '<div class="ex-en">'+esc(w.en)+'</div>'+
+      '<div class="ex-ja" style="margin-top:8px">'+esc(w.jaEx)+'</div>'+
+    '</div>'+
+    '<div class="row" style="margin-top:12px;gap:8px">'+
+      '<span class="pill" style="pointer-events:none"><span class="dot '+(r.s||'new')+'" style="margin-right:8px"></span>'+stJa+'</span>'+
+      '<span class="pill" style="pointer-events:none">出題 '+(r.seen||0)+'回</span>'+
+      '<span class="pill" style="pointer-events:none">つまずき '+(r.wrong||0)+'回</span>'+
+    '</div>'+
+    (due? '<p class="tiny" style="margin:10px 2px 0">次の出題目安：'+due.getFullYear()+'/'+(due.getMonth()+1)+'/'+due.getDate()+'</p>':'')+
+    '<div class="btn-row" style="margin-top:14px">'+
+      '<button class="btn btn-sm glass" id="shSpeakW">'+icon('speak')+'単語</button>'+
+      '<button class="btn btn-sm glass" id="shSpeakS">'+icon('speak')+'例文</button>'+
+    '</div>'+
+    '<button class="btn btn-primary btn-sm" id="shClose" style="margin-top:10px">とじる</button>';
+  stagger($('sheetBody').children, 44);
+  $('shSpeakW').addEventListener('click', function(){ speak(w.w); haptic(HAP.tap); });
+  $('shSpeakS').addEventListener('click', function(){ speak(w.en); haptic(HAP.tap); });
+  $('shClose').addEventListener('click', function(){ closeOverlay($('sheetOv')); });
+  openOverlay($('sheetOv'));
+  haptic(HAP.tap);
+}
+/* シートを下へドラッグして閉じる */
+(function(){
+  var sheet=$('sheet'), st=null;
+  $('sheetGrab').addEventListener('pointerdown', function(e){
+    if(sheetLock) return;               /* 処理中はドラッグで閉じられない */
+    st={y:e.clientY}; sheet.style.transition='none';
+  });
+  window.addEventListener('pointermove', function(e){
+    if(!st) return;
+    var dy=Math.max(0, e.clientY-st.y);
+    sheet.style.transform='translateY('+dy+'px)';
+  });
+  window.addEventListener('pointerup', function(e){
+    if(!st) return;
+    var dy=Math.max(0, e.clientY-st.y); st=null;
+    sheet.style.transition='';
+    sheet.style.transform='';
+    if(dy>90) closeOverlay($('sheetOv'));
+  });
+})();
+function openModal(html){
+  $('modalBody').innerHTML=html;
+  [].forEach.call($('modalBody').querySelectorAll('[data-close]'), function(b){
+    b.addEventListener('click', function(){ closeOverlay($('modalOv')); });
+  });
+  openOverlay($('modalOv'));
+}
+
+/* ---------------------------------------------------------------
+   14. 設定
+   --------------------------------------------------------------- */
+function settingsHTML(){
+  var s=S.settings;
+  return '<h2 class="h1" style="margin:2px 0 2px">設定</h2><p class="sub">いつでも変更できます。</p>'+
+  '<div class="switch-row"><div><div class="st">触覚フィードバック</div><div class="sd">正解・スワイプ時に短く振動</div></div>'+
+    '<button class="switch" role="switch" data-set="haptics" aria-checked="'+!!s.haptics+'" aria-label="触覚フィードバック"></button></div>'+
+  '<hr class="sep">'+
+  '<div class="switch-row"><div><div class="st">傾きによる視差</div><div class="sd">端末の傾きでカードと光沢がわずかに動きます。方位センサーの利用許可が必要です（許可しなくても学習機能はすべて使えます）。</div></div>'+
+    '<button class="switch" role="switch" data-set="gyro" aria-checked="'+!!s.gyro+'" aria-label="傾きによる視差"></button></div>'+
+  '<hr class="sep">'+
+  '<div class="switch-row"><div><div class="st">動きを減らす</div><div class="sd">3D回転・視差・飛び出し演出を止めます</div></div>'+
+    '<button class="switch" role="switch" data-set="reduceMotion" aria-checked="'+!!s.reduceMotion+'" aria-label="動きを減らす"></button></div>'+
+  '<hr class="sep">'+
+  '<div class="switch-row"><div><div class="st">自動で読み上げる</div><div class="sd">カード表示時に単語を発音</div></div>'+
+    '<button class="switch" role="switch" data-set="autoSpeak" aria-checked="'+!!s.autoSpeak+'" aria-label="自動で読み上げる"></button></div>'+
+  '<hr class="sep">'+
+  '<div class="st" style="margin-bottom:8px">読み上げ速度</div>'+
+  '<div class="row" id="rateRow" style="gap:8px">'+
+    [['0.7','ゆっくり'],['0.92','ふつう'],['1.15','はやい']].map(function(p){
+      return '<button class="pill" data-rate="'+p[0]+'" aria-pressed="'+(String(s.rate)===p[0])+'" style="flex:1">'+p[1]+'</button>'; }).join('')+
+  '</div>'+
+  '<div class="st" style="margin:16px 0 8px">デイリーゴール</div>'+
+  '<div class="row" id="goalRow" style="gap:8px">'+
+    [10,20,30,50].map(function(n){
+      return '<button class="pill" data-goal="'+n+'" aria-pressed="'+(S.daily.goal===n)+'" style="flex:1">'+n+'語</button>'; }).join('')+
+  '</div>'+
+  '<hr class="sep">'+
+  '<div class="st" style="margin-bottom:6px">追加コンテンツ</div>'+
+  (hasPlus()
+    ? '<p class="sd" style="margin:0 0 10px;line-height:1.7">Word Plus：<b>購入済み</b>（永続的に利用できます）<br>単語40語・長文3本・文章題24問が追加されています。</p>'+
+      '<button class="btn btn-sm glass" id="setReceipt" style="margin-bottom:10px">レシートを表示</button>'
+    : '<p class="sd" style="margin:0 0 10px;line-height:1.7">Word Plus：未購入。単語40語・長文3本・文章題24問を追加できます。<br>デモ表示のため、実際の請求は発生しません。</p>'+
+      '<button class="btn btn-sm glass" id="setBuy" style="margin-bottom:10px">Word Plus を入手（デモ）</button>')+
+  '<button class="btn btn-sm glass" id="setRestore" style="margin-bottom:14px">購入内容を復元</button>'+
+  (hasExam()
+    ? '<p class="sd" style="margin:0 0 10px;line-height:1.7">共通テスト対策キット：<b>購入済み</b>（永続的に利用できます）<br>長文3本・全10問（小問22）。学習記録は専用ページに独立保存されます。</p>'+
+      '<a class="btn btn-sm glass" href="exam.html" style="text-decoration:none;margin-bottom:10px">専用ページを開く</a>'+
+      '<button class="btn btn-sm glass" id="setExReceipt" style="margin-bottom:10px">キットのレシートを表示</button>'
+    : '<p class="sd" style="margin:0 0 10px;line-height:1.7">共通テスト対策キット：未購入。長文3本・全10問（小問22）とプロの文法／単語解説。<br>デモ表示のため、実際の請求は発生しません。</p>'+
+      '<button class="btn btn-sm glass" id="setExBuy" style="margin-bottom:10px">共通テスト対策キットを入手（デモ）</button>')+
+  '<hr class="sep">'+
+  '<a class="btn btn-sm glass" href="index.html" style="text-decoration:none;margin-bottom:10px">標準版（軽量）を開く</a>'+
+  '<button class="btn btn-sm glass" id="resetBtn" style="color:var(--ng)">学習データを初期化</button>'+
+  /* スクロールしても常に届く位置に「とじる」を固定（サムゾーン維持） */
+  '<div style="position:sticky;bottom:-2px;padding-top:10px;margin-top:10px;background:linear-gradient(180deg,transparent,var(--glass-solid) 42%)">'+
+  '<button class="btn btn-primary btn-sm" data-close="1" style="width:100%">とじる</button></div>';
+}
+function openSettings(){
+  openModal(settingsHTML());
+  [].forEach.call($('modalBody').querySelectorAll('.switch'), function(b){
+    b.addEventListener('click', function(){
+      var k=b.dataset.set, v=b.getAttribute('aria-checked')!=='true';
+      if(k==='gyro' && v){ askGyro(b); return; }
+      S.settings[k]=v; b.setAttribute('aria-checked', String(v)); save();
+      if(k==='reduceMotion'){ applyMotionClass(); if(book.ring) renderBook(); }
+      if(k==='gyro' && !v){ resetTilt(); }
+      haptic(HAP.tap);
+    });
+  });
+  [].forEach.call($('modalBody').querySelectorAll('[data-rate]'), function(b){
+    b.addEventListener('click', function(){
+      S.settings.rate=Number(b.dataset.rate); save();
+      [].forEach.call($('modalBody').querySelectorAll('[data-rate]'), function(x){ x.setAttribute('aria-pressed', String(x===b)); });
+      speak('This is the reading speed.');
+    });
+  });
+  [].forEach.call($('modalBody').querySelectorAll('[data-goal]'), function(b){
+    b.addEventListener('click', function(){
+      S.daily.goal=Number(b.dataset.goal); S.daily.bonus=false; save();
+      [].forEach.call($('modalBody').querySelectorAll('[data-goal]'), function(x){ x.setAttribute('aria-pressed', String(x===b)); });
+      renderHome(); haptic(HAP.tap);
+    });
+  });
+  if($('setReceipt')) $('setReceipt').addEventListener('click', function(){
+    closeOverlay($('modalOv')); setTimeout(function(){ openReceipt(PLUS); }, 240);
+  });
+  if($('setBuy')) $('setBuy').addEventListener('click', function(){
+    closeOverlay($('modalOv')); setTimeout(function(){ openStoreSheet(PLUS); }, 240);
+  });
+  if($('setRestore')) $('setRestore').addEventListener('click', function(){ openRestore(PLUS); });
+  /* 共通テスト対策キット（専用ページ／独立保存） */
+  if($('setExReceipt')) $('setExReceipt').addEventListener('click', function(){
+    closeOverlay($('modalOv')); setTimeout(function(){ openReceipt(EXAM); }, 240);
+  });
+  if($('setExBuy')) $('setExBuy').addEventListener('click', function(){
+    closeOverlay($('modalOv')); setTimeout(function(){ openStoreSheet(EXAM); }, 240);
+  });
+  $('resetBtn').addEventListener('click', function(){
+    openModal('<h2 class="h1">初期化しますか？</h2><p class="sub">XP・レベル・学習履歴・バッジがすべて消えます。この操作は取り消せません。<br>（Word Plus・共通テスト対策キットの購入内容は保持されます）</p>'+
+      '<div class="btn-row"><button class="btn btn-sm glass" data-close="1">やめる</button>'+
+      '<button class="btn btn-sm glass" id="doReset" style="color:var(--ng)">初期化する</button></div>');
+    $('doReset').addEventListener('click', function(){
+      /* 購入済みの追加コンテンツ（永続）は初期化しても失われないようにする */
+      var keepDlc=clone(S.dlc||DEF.dlc);
+      try{ localStorage.removeItem(KEY); }catch(e){}
+      S=clone(DEF); S.dlc=keepDlc; ensureDay(); combo=0; save();
+      applyMotionClass(); renderTop(); renderHome(); renderStats(); renderBook(); renderMenu();
+      closeOverlay($('modalOv'));
+      toast('初期化しました','leaf');
+    });
+  });
+}
+$('goSettings').addEventListener('click', openSettings);
+$('goSettings2').addEventListener('click', openSettings);
+
+/* ---------------------------------------------------------------
+   14-2. Word Plus ストア（デモ購入）／レシート／長文読解
+   ※ 実在の決済サービスとは無関係のデモです。カード情報の入力欄は持たず、
+      「請求は発生しません」を購入導線に常時表示します。
+   --------------------------------------------------------------- */
+var PLUS = {
+  key:'plus', name:'Word Plus', pub:'Glass Vocab Studio', ver:'1.2.0', size:'1.4 MB',
+  rate:'4.8', rateCount:'1,284', price:480, sub:'追加単語と長文読解', mb:1.4,
+  net:437, tax:43
+};
+/* 共通テスト対策キット：専用ページ exam.html で動き、学習履歴は完全に独立 */
+var EXAM = {
+  key:'exam', name:'共通テスト対策キット', pub:'Glass Vocab Studio', ver:'1.0.0', size:'2.1 MB',
+  rate:'4.9', rateCount:'932', price:560, sub:'Reading 実戦セット vol.1', mb:2.1,
+  net:509, tax:51
+};
+var buying = PLUS;                    /* いま購入導線に乗っている商品 */
+var EXKEY = 'gvexam.v1';              /* 対策キット専用の独立ストア（本編と別領域） */
+function hasExam(){ return !!(S.dlc && S.dlc.examKit); }
+/* 対策キットは学習データを共有しないので、「権利」だけを専用キーに書き込む */
+function writeExamOwned(order, at){
+  try{
+    var o = JSON.parse(localStorage.getItem(EXKEY)||'{}') || {};
+    o.owned = true; o.order = order; o.at = at; o.price = EXAM.price;
+    localStorage.setItem(EXKEY, JSON.stringify(o));
+  }catch(e){}
+}
+function prodOwned(p){ return p && p.key==='exam' ? hasExam() : hasPlus(); }
+function prodOrder(p){
+  return (p && p.key==='exam')
+    ? { id:S.dlc.examOrder, at:S.dlc.examAt, price:S.dlc.examPrice||EXAM.price }
+    : { id:S.dlc.order, at:S.dlc.at, price:S.dlc.price||PLUS.price };
+}
+function grantProd(p, order, at){
+  if(p.key==='exam'){
+    S.dlc.examKit=true; S.dlc.examOrder=order; S.dlc.examAt=at; S.dlc.examPrice=EXAM.price;
+    writeExamOwned(order, at);
+  }else{
+    S.dlc.wordPlus=true; S.dlc.order=order; S.dlc.at=at; S.dlc.price=PLUS.price;
+  }
+  save();
+}
+var sheetLock=false;                  /* 処理中はシートを閉じられないようにする */
+function yen(n){ return '¥'+String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+function plusIcon(){
+  return '<svg viewBox="0 0 62 62" aria-hidden="true">'+
+    '<defs><linearGradient id="wpGloss" x1="0" y1="0" x2="0.6" y2="1">'+
+    '<stop offset="0" stop-color="#ffffff" stop-opacity=".40"/><stop offset="1" stop-color="#ffffff" stop-opacity="0"/>'+
+    '</linearGradient></defs>'+
+    '<rect width="62" height="62" fill="url(#wpGloss)"/>'+
+    '<g fill="none" stroke="#F7F5F1" stroke-width="2.7" stroke-linecap="round" stroke-linejoin="round">'+
+    '<path d="M11 21l4.6 19L22 27.5 28.4 40 33 21"/><path d="M44 26v13M37.5 32.5h13"/></g></svg>';
+}
+/* 対策キットのアイコン（マークシートと鉱筆） */
+function examIcon(){
+  return '<svg viewBox="0 0 62 62" aria-hidden="true">'+
+    '<defs><linearGradient id="ekGloss" x1="0" y1="0" x2="0.6" y2="1">'+
+    '<stop offset="0" stop-color="#ffffff" stop-opacity=".38"/><stop offset="1" stop-color="#ffffff" stop-opacity="0"/>'+
+    '</linearGradient></defs>'+
+    '<rect width="62" height="62" fill="url(#ekGloss)"/>'+
+    '<g fill="none" stroke="#F7F5F1" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">'+
+    '<rect x="13" y="11" width="27" height="40" rx="4"/>'+
+    '<path d="M19 21h9M19 28h15M19 35h12"/>'+
+    '<path d="M45 18l5 5-17 17-6 1 1-6z"/></g></svg>';
+}
+function starRow(){
+  var s='';
+  for(var i=0;i<5;i++){
+    s+='<svg viewBox="0 0 24 24" aria-hidden="true" fill="'+(i<4?'currentColor':'none')+'" stroke="currentColor" stroke-width="1.6">'+
+      '<path d="M12 4l2.3 4.9 5.2.7-3.8 3.6.9 5.2-4.6-2.5-4.6 2.5.9-5.2L4.5 9.6l5.2-.7z"/></svg>';
+  }
+  return '<span class="stars" aria-hidden="true">'+s+'</span>';
+}
+function inclRows(p){
+  if(p && p.key==='exam'){
+    return '<div class="incl">'+
+      '<div class="incl-row">'+icon('doc')+'<div><b>共通テスト型長文 3本</b><span>案内文／ブログ＋メール／説明文＋図表（英日対訳）</span></div></div>'+
+      '<div class="incl-row">'+icon('pen')+'<div><b>全 10問・小問 22</b><span>情報検索／語彙言い換え／推論／図表／要約（100点満点）</span></div></div>'+
+      '<div class="incl-row">'+icon('book')+'<div><b>プロの解説（解説／文法／語彙）</b><span>小問ごとに根拠・誤答の切り方・文法点・語彙リスト</span></div></div>'+
+      '<div class="incl-row">'+icon('star')+'<div><b>専用ページと独立保存</b><span>exam.html の専用UIで動作。本編のXP・SRSとは完全別管理</span></div></div>'+
+    '</div>';
+  }
+  return '<div class="incl">'+
+    '<div class="incl-row">'+icon('book')+'<div><b>単語 40語</b><span>本編未収録の重要語（p01〜p40）を追加</span></div></div>'+
+    '<div class="incl-row">'+icon('doc')+'<div><b>長文 3本</b><span>英日対訳・段落ごとの訳表示・読み上げ対応</span></div></div>'+
+    '<div class="incl-row">'+icon('pen')+'<div><b>文章題 24問</b><span>内容一致・空所補充・語義・推論・不一致</span></div></div>'+
+  '</div>';
+}
+function orderDate(ts){
+  var d=new Date(ts||Date.now());
+  return d.getFullYear()+'/'+('0'+(d.getMonth()+1)).slice(-2)+'/'+('0'+d.getDate()).slice(-2)+' '+
+    ('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);
+}
+function newOrderId(){
+  var chars='ABCDEFGHJKLMNPQRSTUVWXYZ23456789', s='';
+  for(var i=0;i<5;i++) s+=chars.charAt(Math.floor(Math.random()*chars.length));
+  var d=new Date();
+  return 'GVP-'+d.getFullYear()+('0'+(d.getMonth()+1)).slice(-2)+('0'+d.getDate()).slice(-2)+'-'+s;
+}
+
+/* ---- ホームのストアカード ---- */
+function renderStore(){ renderPlusStore(); renderExamStore(); }
+function renderPlusStore(){
+  var box=$('storeCard'); if(!box) return;
+  var owned=hasPlus();
+  var head='<span class="rim-light"></span>'+
+    '<div class="store-head">'+
+      '<div class="app-icon">'+plusIcon()+'</div>'+
+      '<div style="min-width:0;flex:1 1 auto">'+
+        '<div class="store-title">'+PLUS.name+'</div>'+
+        '<div class="store-pub">'+PLUS.pub+'</div>'+
+        '<div class="store-meta">'+starRow()+'<span style="font-weight:700;color:var(--ink-2)">'+PLUS.rate+'</span>'+
+          '<span>('+PLUS.rateCount+'件の評価)</span></div>'+
+        '<div class="store-meta"><span>アプリ内アイテム</span><span class="dot-sep"></span><span>買い切り</span>'+
+          '<span class="dot-sep"></span><span>'+PLUS.size+'</span><span class="dot-sep"></span><span>v'+PLUS.ver+'</span></div>'+
+      '</div>'+
+    '</div>';
+
+  var body;
+  if(owned){
+    body='<div class="price-row">'+
+      '<div style="flex:1 1 auto"><div class="owned-tag">'+icon('check')+'購入済み</div>'+
+      '<div class="price-sub">'+orderDate(S.dlc.at)+' に有効化（デモ）・永続利用可</div></div>'+
+      '<button class="btn btn-primary buy-btn" id="storeOpen" style="flex:0 0 auto;padding:0 22px">開く</button>'+
+    '</div>'+
+    '<div class="btn-row" style="margin-top:10px">'+
+      '<button class="btn btn-sm btn-plain" id="storeRc">レシートを表示</button>'+
+      '<button class="btn btn-sm btn-plain" id="storeRead">長文読解へ</button>'+
+    '</div>';
+  }else{
+    body='<div class="price-row">'+
+      '<div style="flex:1 1 auto"><div class="price">'+yen(PLUS.price)+'</div>'+
+      '<div class="price-sub">1回のお支払い・買い切り（税込）</div></div>'+
+      '<button class="btn btn-primary buy-btn" id="storeBuy" style="flex:0 0 auto;padding:0 24px">'+icon('bag')+'入手</button>'+
+    '</div>'+
+    '<div class="row" style="margin-top:10px;gap:8px;align-items:flex-start">'+
+      '<span class="demo-chip">DEMO</span>'+
+      '<span class="tiny" style="flex:1;line-height:1.5">デモ表示です。実際の請求は発生しません。</span>'+
+    '</div>';
+  }
+
+  var prev='<div class="prev-strip">'+
+    ['<b>phenomenon</b><span>現象 ／ p32</span>',
+     '<b>Sleep and Memory</b><span>長文3本目 ／ 4段落</span>',
+     '<b>空所補充・語義</b><span>文章題 24問</span>'].map(function(t){
+      return '<div class="prev-tile'+(owned?'':' locked')+'"><div class="pv">'+t+'</div>'+
+        (owned?'':'<div class="prev-lock">'+icon('lock')+'</div>')+'</div>';
+    }).join('')+'</div>';
+
+  var note='<p class="note">'+(owned
+    ? 'このコンテンツは端末内に保存され、アプリを閉じても利用できます。学習メニューの「長文読解」と単語帳の「Plus」から使えます。'
+    : '※ これはアプリ内のデモ表示です。外部のストアや決済サービスには接続しておらず、カード情報の入力も行いません。')+'</p>';
+
+  box.innerHTML=head+body+inclRows()+prev+note;
+  if(owned){
+    $('storeOpen').addEventListener('click', function(){ cfg.mode='reading'; showView('study'); openPassagePicker(); });
+    $('storeRc').addEventListener('click', function(){ openReceipt(PLUS); });
+    $('storeRead').addEventListener('click', function(){ cfg.mode='reading'; showView('study'); openPassagePicker(); });
+  }else{
+    $('storeBuy').addEventListener('click', function(){ haptic(HAP.tap); openStoreSheet(PLUS); });
+  }
+}
+
+/* ---- ホームのストアカード（共通テスト対策キット） ---- */
+function renderExamStore(){
+  var box=$('storeCard2'); if(!box) return;
+  var owned=hasExam();
+  var head='<span class="rim-light"></span>'+
+    '<div class="store-head">'+
+      '<div class="app-icon exam">'+examIcon()+'</div>'+
+      '<div style="min-width:0;flex:1 1 auto">'+
+        '<div class="store-title">'+EXAM.name+'</div>'+
+        '<div class="store-pub">'+EXAM.pub+'</div>'+
+        '<div class="store-meta">'+starRow()+'<span style="font-weight:700;color:var(--ink-2)">'+EXAM.rate+'</span>'+
+          '<span>('+EXAM.rateCount+'件の評価)</span></div>'+
+        '<div class="store-meta"><span>アプリ内アイテム</span><span class="dot-sep"></span><span>買い切り</span>'+
+          '<span class="dot-sep"></span><span>'+EXAM.size+'</span><span class="dot-sep"></span><span>v'+EXAM.ver+'</span></div>'+
+      '</div>'+
+    '</div>';
+
+  var body;
+  if(owned){
+    body='<div class="price-row">'+
+      '<div style="flex:1 1 auto"><div class="owned-tag">'+icon('check')+'購入済み</div>'+
+      '<div class="price-sub">'+orderDate(S.dlc.examAt)+' に有効化（デモ）・永続利用可</div></div>'+
+      '<a class="btn btn-primary buy-btn" id="examOpen" href="exam.html" style="flex:0 0 auto;padding:0 22px;text-decoration:none">開く</a>'+
+    '</div>'+
+    '<div class="btn-row" style="margin-top:10px">'+
+      '<button class="btn btn-sm btn-plain" id="examRc">レシートを表示</button>'+
+      '<a class="btn btn-sm btn-plain" href="exam.html" style="text-decoration:none">専用ページへ</a>'+
+    '</div>';
+  }else{
+    body='<div class="price-row">'+
+      '<div style="flex:1 1 auto"><div class="price">'+yen(EXAM.price)+'</div>'+
+      '<div class="price-sub">1回のお支払い・買い切り（税込）</div></div>'+
+      '<button class="btn btn-primary buy-btn" id="examBuy" style="flex:0 0 auto;padding:0 24px">'+icon('bag')+'入手</button>'+
+    '</div>'+
+    '<div class="row" style="margin-top:10px;gap:8px;align-items:flex-start">'+
+      '<span class="demo-chip">DEMO</span>'+
+      '<span class="tiny" style="flex:1;line-height:1.5">デモ表示です。実際の請求は発生しません。</span>'+
+    '</div>';
+  }
+
+  var prev='<div class="prev-strip">'+
+    ['<b>第2問 A 型</b><span>案内文＋表 ／ 小問6</span>',
+     '<b>第4問 型</b><span>ブログ＋返信メール ／ 小問8</span>',
+     '<b>第6問 型</b><span>説明文＋図表 ／ 小問8</span>'].map(function(t){
+      return '<div class="prev-tile'+(owned?'':' locked')+'"><div class="pv">'+t+'</div>'+
+        (owned?'':'<div class="prev-lock">'+icon('lock')+'</div>')+'</div>';
+    }).join('')+'</div>';
+
+  var note='<p class="note">'+(owned
+    ? '専用ページ（exam.html）で利用できます。解答・採点・語彙メモはキット専用の保存領域（gvexam.v1）に入り、本編のXP・レベル・学習履歴には影響しません。'
+    : '※ アプリ内のデモ表示です。外部のストアや決済サービスには接続しておらず、カード情報の入力も行いません。購入後は専用ページですぐに使えます。')+'</p>';
+
+  box.innerHTML=head+body+inclRows(EXAM)+prev+note;
+  if(owned){
+    $('examRc').addEventListener('click', function(){ openReceipt(EXAM); });
+  }else{
+    $('examBuy').addEventListener('click', function(){ haptic(HAP.tap); openStoreSheet(EXAM); });
+  }
+}
+
+/* ---- 商品シート（購入の確認） ---- */
+function openSheetHTML(html, noStagger, tall){
+  $('sheet').classList.toggle('tall', !!tall);
+  $('sheetBody').innerHTML=html;
+  $('sheetBody').scrollTop=0;
+  if(!noStagger) stagger($('sheetBody').children, 40);
+  if($('sheetOv').hidden) openOverlay($('sheetOv'));
+}
+function openStoreSheet(prod){
+  buying = prod || PLUS;
+  sheetLock=false;
+  if(prodOwned(buying)){ openReceipt(buying); return; }
+  var isEx = buying.key==='exam';
+  var lead = isEx
+    ? '共通テスト型の長文3本と全10問（小問22・100点満点）を追加します。専用ページ（exam.html）の専用UIで動作し、解答・採点は本編と完全に別保存です。'
+    : '本編に含まれない単語40語と長文3本、文章題24問を追加します。購入後は端末内に保存され、期限なく利用できます。';
+  var html=
+    '<div class="pay-head">'+
+      '<div class="app-icon'+(isEx?' exam':'')+'" style="width:52px;height:52px;border-radius:15px">'+(isEx?examIcon():plusIcon())+'</div>'+
+      '<div style="min-width:0"><div class="store-title" style="font-size:1rem">'+buying.name+'</div>'+
+      '<div class="store-pub">'+buying.pub+'</div>'+
+      '<div class="store-meta"><span>アプリ内アイテム</span><span class="dot-sep"></span><span>'+buying.size+'</span></div></div>'+
+    '</div>'+
+    '<p class="tiny" style="line-height:1.7;margin:0 0 10px">'+lead+'</p>'+
+    inclRows(buying)+
+    '<div class="pay-line" style="margin-top:14px"></div>'+
+    '<div class="pay-row"><span class="k">小計</span><span class="v">'+yen(buying.net)+'</span></div>'+
+    '<div class="pay-row"><span class="k">消費税（10%）</span><span class="v">'+yen(buying.tax)+'</span></div>'+
+    '<div class="pay-line"></div>'+
+    '<div class="pay-row"><span class="k">合計</span><span class="pay-total">'+yen(buying.price)+'</span></div>'+
+    '<div class="pay-method">'+icon('info')+
+      '<div style="flex:1"><b style="font-size:.88rem;display:block">お支払い方法：デモ支払い</b>'+
+      '<span class="tiny">実際の決済は行われません。カード情報の入力もありません。</span></div>'+
+      '<span class="demo-chip">DEMO</span></div>'+
+    '<div class="sticky-foot">'+
+      '<div class="btn-row">'+
+        '<button class="btn btn-sm btn-plain" id="payCancel">キャンセル</button>'+
+        '<button class="btn btn-primary btn-sm" id="payGo">'+yen(buying.price)+' で入手（デモ）</button>'+
+      '</div>'+
+      '<button class="btn btn-sm btn-plain" id="payRestore" style="margin-top:8px">購入内容を復元</button>'+
+      '<p class="note" style="text-align:center;margin-top:8px">このデモ購入で料金が請求されることはありません。</p>'+
+    '</div>';
+  openSheetHTML(html, false, true);
+  $('payCancel').addEventListener('click', function(){ closeOverlay($('sheetOv')); });
+  $('payRestore').addEventListener('click', function(){ openRestore(buying); });
+  $('payGo').addEventListener('click', function(){ runPurchase(buying); });
+}
+
+/* ---- 決済〜ダウンロードの進行（デモ） ---- */
+function runPurchase(prod){
+  buying = prod || buying || PLUS;
+  var isEx = buying.key==='exam';
+  sheetLock=true;
+  haptic(HAP.tap);
+  var quick=!MOTION();
+  openSheetHTML(
+    '<div style="padding:18px 4px 6px;text-align:center">'+
+      '<div class="app-icon'+(isEx?' exam':'')+'" style="width:56px;height:56px;border-radius:16px;margin:0 auto 14px">'+(isEx?examIcon():plusIcon())+'</div>'+
+      '<div class="spinner" id="paySpin" style="margin-bottom:14px"></div>'+
+      '<div class="step-txt" id="payStep">注文を確認しています…</div>'+
+      '<div class="dlprog" id="payBarWrap" style="margin:14px 6px 6px;display:none"><i id="payBar"></i></div>'+
+      '<div class="tiny" id="payBytes" style="min-height:18px"></div>'+
+      '<p class="note" style="text-align:center">デモ処理中です。実際の請求は発生しません。</p>'+
+    '</div>', true, false);
+
+  var t=quick?1:0;
+  function step(msg, ms, fn){ setTimeout(fn?function(){ if($('payStep')) $('payStep').textContent=msg; fn(); }
+    : function(){ if($('payStep')) $('payStep').textContent=msg; }, quick? ms*0.25 : ms); }
+
+  step('注文を確認しています…', 60);
+  step('お支払いを処理しています（デモ）', 900);
+  step('コンテンツを準備しています…', 1750, function(){
+    var wrap=$('payBarWrap'); if(wrap) wrap.style.display='block';
+    var pct=0, total=buying.mb||1.4;
+    var iv=setInterval(function(){
+      pct=Math.min(100, pct + (8+Math.random()*13));
+      var bar=$('payBar'), by=$('payBytes');
+      if(!bar){ clearInterval(iv); return; }
+      bar.style.width=pct+'%';
+      if(by) by.textContent=(total*pct/100).toFixed(1)+' MB / '+total.toFixed(1)+' MB（'+Math.round(pct)+'%）';
+      if(pct>=100){
+        clearInterval(iv);
+        setTimeout(function(){
+          if($('payStep')) $('payStep').textContent='インストールしています…';
+          setTimeout(completePurchase, quick?120:600);
+        }, quick?100:320);
+      }
+    }, quick?40:150);
+  });
+}
+function completePurchase(){
+  var p = buying || PLUS, isEx = p.key==='exam';
+  /* 永続化：ここで初めて権利を保存する（対策キットは専用キーにも書く） */
+  var order = newOrderId(), at = Date.now();
+  grantProd(p, order, at);
+  var rec = prodOrder(p);
+  sheetLock=false;
+  haptic(HAP.level);
+  if(MOTION()){
+    /* 落ち着いた祝福：光の粒だけ（発光色は使わない） */
+    var wrap=document.createElement('div');
+    wrap.className='lvup';
+    var h='';
+    for(var i=0;i<16;i++){
+      var a=(Math.PI*2/16)*i, r=70+Math.random()*90;
+      h+='<span class="spark'+(i%4===0?' big':'')+'" style="--dx:'+Math.round(Math.cos(a)*r)+'px;--dy:'+
+        Math.round(Math.sin(a)*r*0.8)+'px;--dz:'+Math.round(40+Math.random()*180)+'px;animation-delay:'+(i*24)+'ms"></span>';
+    }
+    wrap.innerHTML=h;
+    fx.appendChild(wrap);
+    setTimeout(function(){ wrap.remove(); }, 1900);
+  }
+  openSheetHTML(
+    '<div style="text-align:center;padding:6px 2px 0">'+
+      '<svg class="check-anim" viewBox="0 0 66 66" aria-hidden="true">'+
+        '<circle class="cc" cx="33" cy="33" r="30"/><path class="ck" d="M20 34.5l9 9 17-19"/></svg>'+
+      '<h2 class="h1" style="margin:12px 0 2px">購入が完了しました</h2>'+
+      '<p class="sub" style="margin-bottom:14px">'+p.name+' が使えるようになりました。</p>'+
+    '</div>'+
+    '<div class="receipt">'+
+      '<div class="rc-row"><span class="k">商品</span><b>'+p.name+'</b></div>'+
+      '<div class="rc-row"><span class="k">金額</span><b>'+yen(p.price)+'（税込）</b></div>'+
+      '<div class="rc-row"><span class="k">注文ID</span><b>'+order+'</b></div>'+
+      '<div class="rc-row"><span class="k">日時</span><b>'+orderDate(at)+'</b></div>'+
+      '<div class="rc-dash"></div>'+
+      '<div class="rc-row"><span class="k">支払い方法</span><b>デモ支払い（請求なし）</b></div>'+
+      '<div class="rc-row"><span class="k">状態</span><b style="color:var(--ok)">有効・永続</b></div>'+
+      '<span class="wm">DEMO</span>'+
+    '</div>'+
+    '<p class="note">この購入はデモです。実際の請求は行われていません。データは端末内（localStorage）に保存され、次回起動時も有効です。'+
+      (isEx? '対策キットの学習履歴は専用領域（gvexam.v1）に保存され、本編のXP・レベルには影響しません。':'')+'</p>'+
+    '<div class="sticky-foot"><div class="btn-row">'+
+      '<button class="btn btn-sm btn-plain" id="doneClose">とじる</button>'+
+      (isEx
+        ? '<a class="btn btn-primary btn-sm" id="doneOpen" href="exam.html" style="text-decoration:none">専用ページを開く</a>'
+        : '<button class="btn btn-primary btn-sm" id="doneOpen">今すぐ開く</button>')+
+    '</div></div>', false, true);
+  renderStore(); renderMenu(); renderBook(); renderTop(); renderStats();
+  toast(p.name+' を追加しました', 'check');
+  $('doneClose').addEventListener('click', function(){ closeOverlay($('sheetOv')); });
+  if(!isEx){
+    $('doneOpen').addEventListener('click', function(){
+      closeOverlay($('sheetOv'));
+      cfg.mode='reading';
+      setTimeout(function(){ showView('study'); openPassagePicker(); }, 260);
+    });
+  }
+}
+function openReceipt(prod){
+  var p = prod || PLUS;
+  buying = p;
+  sheetLock=false;
+  if(!prodOwned(p)){ openStoreSheet(p); return; }
+  var rec = prodOrder(p);
+  openSheetHTML(
+    '<h2 class="h1" style="margin:2px 0 2px">レシート</h2>'+
+    '<p class="sub">'+p.name+'（追加コンテンツ）</p>'+
+    '<div class="receipt">'+
+      '<div class="rc-row"><span class="k">商品</span><b>'+p.name+' v'+p.ver+'</b></div>'+
+      '<div class="rc-row"><span class="k">販売元</span><b>'+p.pub+'</b></div>'+
+      '<div class="rc-dash"></div>'+
+      '<div class="rc-row"><span class="k">小計</span><b>'+yen(p.net)+'</b></div>'+
+      '<div class="rc-row"><span class="k">消費税</span><b>'+yen(p.tax)+'</b></div>'+
+      '<div class="rc-row"><span class="k">合計</span><b>'+yen(rec.price||p.price)+'</b></div>'+
+      '<div class="rc-dash"></div>'+
+      '<div class="rc-row"><span class="k">注文ID</span><b>'+(rec.id||'-')+'</b></div>'+
+      '<div class="rc-row"><span class="k">日時</span><b>'+orderDate(rec.at)+'</b></div>'+
+      '<div class="rc-row"><span class="k">支払い方法</span><b>デモ支払い（請求なし）</b></div>'+
+      '<div class="rc-row"><span class="k">状態</span><b style="color:var(--ok)">有効・永続</b></div>'+
+      '<span class="wm">DEMO</span>'+
+    '</div>'+
+    '<p class="note">これはデモのレシート表示です。実際の請求・領収書ではありません。</p>'+
+    '<div class="sticky-foot"><div class="btn-row">'+
+      '<button class="btn btn-sm btn-plain" id="rcRestore">購入内容を復元</button>'+
+      '<button class="btn btn-primary btn-sm" data-close="1">とじる</button>'+
+    '</div></div>', false, true);
+  $('rcRestore').addEventListener('click', function(){ openRestore(p); });
+  [].forEach.call($('sheetBody').querySelectorAll('[data-close]'), function(b){
+    b.addEventListener('click', function(){ closeOverlay($('sheetOv')); });
+  });
+}
+function openRestore(prod){
+  var lines = [PLUS, EXAM].map(function(p){
+    var ow = prodOwned(p), rec = prodOrder(p);
+    return '<div class="rc-row" style="padding:6px 0"><span class="k">'+p.name+'</span>'+
+      '<b style="color:'+(ow?'var(--ok)':'var(--ink-3)')+'">'+(ow? '有効（'+(rec.id||'-')+'）' : '未購入')+'</b></div>';
+  }).join('');
+  var any = hasPlus() || hasExam();
+  openModal('<h2 class="h1" style="margin-top:2px">'+(any?'復元しました':'復元できる購入はありません')+'</h2>'+
+    '<p class="sub" style="line-height:1.7">'+(any
+      ? 'この端末には以下の購入記録（デモ）があります。すでに有効です。'
+      : 'この端末に購入記録（デモ）は見つかりませんでした。デモ購入はブラウザごとに保存されます。')+'</p>'+
+    '<div class="receipt" style="margin-bottom:12px">'+lines+'<span class="wm">DEMO</span></div>'+
+    '<button class="btn btn-primary" data-close="1">とじる</button>');
+}
+
+/* ---- 長文読解（Word Plus） ---- */
+var rs=null;
+function openPassagePicker(){
+  if(!hasPlus()){ openStoreSheet(PLUS); return; }
+  sess=null; rs=null;
+  $('studyMenu').style.display='none';
+  $('session').style.display='flex';
+  showView('study');
+  $('sessCount').textContent='長文 3本';
+  $('sessProg').style.width='0%';
+  $('sessMode').textContent='Word Plus';
+  var body=$('sessBody');
+  body.classList.add('scrolly');
+  body.innerHTML='<div style="width:100%"><div class="plist" id="plist"></div></div>';
+  $('plist').innerHTML=PASSAGES.map(function(p,i){
+    var d=S.reading[p.id];
+    return '<button class="prow" data-p="'+p.id+'"><span class="pn">'+(i+1)+'</span>'+
+      '<span style="flex:1;min-width:0"><b>'+esc(p.titleJa)+'</b>'+
+      '<span>'+esc(p.title)+' ・ 約'+p.mins+'分 ・ '+p.qs.length+'問</span></span>'+
+      (d? '<span class="lock-chip">'+d.correct+'/'+d.total+'</span>'
+        : '<span style="color:var(--accent-ink);width:22px">'+icon('up')+'</span>')+'</button>';
+  }).join('');
+  stagger($('plist').children, 60);
+  [].forEach.call($('plist').children, function(b){
+    b.addEventListener('click', function(){ haptic(HAP.tap); startReading(b.dataset.p); });
+  });
+  $('sessActions').innerHTML='<button class="btn btn-ghost glass" id="pQuit">メニューへ戻る</button>';
+  $('pQuit').addEventListener('click', endSessionToMenu);
+}
+function startReading(pid){
+  var p=PASS_BY_ID[pid]; if(!p) return;
+  combo=0; comboBest=0;
+  rs={p:p, phase:'read', qi:0, ok:0, xp:0, answered:false, order:null};
+  renderReading();
+}
+function answerReading(ok){
+  if(!rs || rs.answered) return;
+  rs.answered=true;
+  touchDay();
+  S.stats.answers++;
+  if(ok){
+    S.stats.correct++;
+    combo++; comboBest=Math.max(comboBest,combo);
+    S.best.combo=Math.max(S.best.combo||0, combo);
+    rs.ok++;
+  }else combo=0;
+  var gain = ok? Math.round(12*comboMult()) : 0;
+  rs.xp+=gain;
+  haptic(ok?HAP.ok:HAP.ng);
+  fxFlash(ok);
+  if(gain>0) addXP(gain); else { save(); renderTop(); }
+  checkBadges();
+}
+function renderReading(){
+  if(!rs) return;
+  var body=$('sessBody'), acts=$('sessActions');
+  body.classList.add('scrolly');
+  if(rs.phase==='read'){
+    $('sessCount').textContent='読解';
+    $('sessMode').textContent=rs.p.titleJa;
+    $('sessProg').style.width='8%';
+    body.innerHTML='<article class="passage glass"><span class="rim-light"></span>'+
+      '<div class="pg-title">'+esc(rs.p.title)+'</div>'+
+      '<div class="pg-sub">'+esc(rs.p.titleJa)+' ・ 約'+rs.p.mins+'分 ・ Word Plus</div>'+
+      rs.p.paras.map(function(pp,i){
+        return '<div class="pg-p" data-i="'+i+'"><p class="pg-en">'+esc(pp[0])+'</p>'+
+          '<p class="pg-ja">'+esc(pp[1])+'</p><div class="pg-tap">タップで日本語訳を表示</div></div>';
+      }).join('')+'</article>';
+    [].forEach.call(body.querySelectorAll('.pg-p'), function(el){
+      el.addEventListener('click', function(){
+        el.classList.toggle('open');
+        el.querySelector('.pg-tap').textContent = el.classList.contains('open')? 'タップで訳を隠す':'タップで日本語訳を表示';
+        haptic(HAP.tap);
+      });
+    });
+    acts.innerHTML='<div class="btn-row">'+
+        '<button class="btn btn-sm glass" id="rdAll">訳をすべて表示</button>'+
+        '<button class="btn btn-sm glass" id="rdSpeak">'+icon('speak')+'音読</button>'+
+      '</div>'+
+      '<button class="btn btn-primary" id="rdGo">問題へ進む（'+rs.p.qs.length+'問）</button>'+
+      '<button class="btn btn-ghost glass" id="rdQuit" style="min-height:44px">長文の一覧へ</button>';
+    $('rdAll').addEventListener('click', function(){
+      [].forEach.call(body.querySelectorAll('.pg-p'), function(el){
+        el.classList.add('open');
+        el.querySelector('.pg-tap').textContent='タップで訳を隠す';
+      });
+      haptic(HAP.tap);
+    });
+    $('rdSpeak').addEventListener('click', function(){
+      speak(rs.p.paras.map(function(pp){ return pp[0]; }).join(' '));
+      haptic(HAP.tap);
+    });
+    $('rdGo').addEventListener('click', function(){
+      rs.phase='q'; rs.qi=0; rs.answered=false;
+      body.scrollTop=0; renderReading();
+    });
+    $('rdQuit').addEventListener('click', openPassagePicker);
+    return;
+  }
+  if(rs.phase==='q'){
+    if(rs.qi>=rs.p.qs.length){ readingSummary(); return; }
+    var q=rs.p.qs[rs.qi];
+    rs.answered=false;
+    $('sessCount').textContent=(rs.qi+1)+' / '+rs.p.qs.length;
+    $('sessMode').textContent=rs.p.titleJa;
+    $('sessProg').style.width=Math.round(rs.qi/rs.p.qs.length*100)+'%';
+    body.innerHTML='<div class="q-pane glass" style="text-align:left"><span class="rim-light"></span>'+
+      '<div class="q-kicker">'+esc(q.t)+'</div>'+
+      '<div class="q-text">'+esc(q.q)+'</div>'+
+      '<div id="expBox"></div></div>';
+    /* 正解位置が偏らないようにシャッフルしてから表示する */
+    var opts=q.c.map(function(t,i){ return {t:t, ok:i===q.a}; });
+    shuffle(opts);
+    var letters=['A','B','C','D'];
+    acts.innerHTML=opts.map(function(o,i){
+      return '<button class="btn choice glass" data-ok="'+(o.ok?'1':'')+'"><span class="no">'+letters[i]+'</span><span>'+esc(o.t)+'</span></button>';
+    }).join('')+'<button class="btn btn-ghost glass" id="rdBack" style="min-height:44px">本文に戻る</button>';
+    stagger(acts.children, 50);
+    [].forEach.call(acts.querySelectorAll('.choice'), function(b){
+      b.addEventListener('click', function(){
+        if(rs.answered) return;
+        var ok=!!b.dataset.ok;
+        answerReading(ok);
+        [].forEach.call(acts.querySelectorAll('.choice'), function(x){
+          if(x.dataset.ok) x.classList.add('correct');
+          else if(x===b) x.classList.add('wrong');
+          else x.classList.add('dim');
+        });
+        var exp=$('expBox');
+        if(exp) exp.innerHTML='<div class="exp"><b>'+(ok?'正解':'解説')+'</b>　'+esc(q.e)+'</div>';
+        var back=$('rdBack');
+        if(back){
+          back.className='btn btn-primary';
+          back.textContent = (rs.qi+1>=rs.p.qs.length)? '結果を見る' : '次の問題へ';
+          back.onclick=function(){ rs.qi++; rs.answered=false; body.scrollTop=0; renderReading(); };
+        }
+      });
+    });
+    $('rdBack').addEventListener('click', function(){
+      if(rs.answered) return;
+      rs.phase='read'; renderReading();
+    });
+  }
+}
+function readingSummary(){
+  var total=rs.p.qs.length, ok=rs.ok, acc=Math.round(ok/total*100);
+  var first=!S.reading[rs.p.id];
+  var bonus = ok===total? 40 : (ok>=Math.ceil(total*0.7)? 20 : 0);
+  S.reading[rs.p.id]={correct:ok, total:total, at:Date.now()};
+  save();
+  $('sessCount').textContent=total+' / '+total;
+  $('sessProg').style.width='100%';
+  $('sessMode').textContent='おつかれさま';
+  var body=$('sessBody');
+  body.classList.add('scrolly');
+  body.innerHTML='<div class="q-pane glass"><span class="rim-light"></span>'+
+    '<div class="q-kicker">READING COMPLETE</div>'+
+    '<div style="font-size:2.5rem;font-weight:800;line-height:1.1">+'+(rs.xp+bonus)+' <span style="font-size:1rem">XP</span></div>'+
+    '<div class="tiny" style="margin:10px 0 12px">正解 '+ok+' / '+total+'（'+acc+'%）'+(bonus?'・ボーナス +'+bonus+'XP':'')+'</div>'+
+    '<div class="exp" style="text-align:left">'+esc(rs.p.titleJa)+' を読み終えました。'+
+      (first?'初回クリアです。':'記録を更新できます。')+'間違えた問題は本文を読み返すと定着します。</div></div>';
+  if(bonus) addXP(bonus);
+  $('sessActions').innerHTML=
+    '<button class="btn btn-primary" id="rdAgain">もう一度この長文を解く</button>'+
+    '<div class="btn-row"><button class="btn btn-sm glass" id="rdList">長文の一覧へ</button>'+
+    '<button class="btn btn-sm glass" id="rdMenu">メニューへ</button></div>';
+  var pid=rs.p.id;
+  $('rdAgain').addEventListener('click', function(){ startReading(pid); });
+  $('rdList').addEventListener('click', openPassagePicker);
+  $('rdMenu').addEventListener('click', endSessionToMenu);
+  checkBadges(); renderTop();
+}
+
+/* ---------------------------------------------------------------
+   15. ジャイロ視差（許可前に必ず説明を出す）
+   --------------------------------------------------------------- */
+var tilt={x:0,y:0,tx:0,ty:0}, tiltRAF=null, gyroBound=false;
+function resetTilt(){
+  tilt.tx=tilt.ty=0;
+  var el=$('deckTilt'); if(el) el.style.transform='';
+  document.getElementById('app').style.setProperty('--gx','26%');
+  document.getElementById('app').style.setProperty('--gy','2%');
+}
+function onOrient(e){
+  if(!S.settings.gyro || !MOTION()) return;
+  var g=clamp(e.gamma||0,-40,40), b=clamp(e.beta||0,0,90);
+  tilt.tx=clamp((45-b)*0.2, -8, 8);
+  tilt.ty=clamp(g*0.22, -8, 8);
+  if(!tiltRAF) tiltRAF=requestAnimationFrame(loopTilt);
+}
+function loopTilt(){
+  tiltRAF=null;
+  tilt.x += (tilt.tx-tilt.x)*0.12;
+  tilt.y += (tilt.ty-tilt.y)*0.12;
+  var el=$('deckTilt');
+  if(el) el.style.transform='rotateX('+tilt.x.toFixed(2)+'deg) rotateY('+tilt.y.toFixed(2)+'deg)';
+  var app=document.getElementById('app');
+  app.style.setProperty('--gx', (26+tilt.y*2.4).toFixed(1)+'%');
+  app.style.setProperty('--gy', (2+tilt.x*1.2).toFixed(1)+'%');
+  if(Math.abs(tilt.tx-tilt.x)>0.05 || Math.abs(tilt.ty-tilt.y)>0.05) tiltRAF=requestAnimationFrame(loopTilt);
+}
+function bindGyro(){
+  if(gyroBound) return;
+  window.addEventListener('deviceorientation', onOrient, {passive:true});
+  gyroBound=true;
+}
+function askGyro(sw){
+  openModal('<h2 class="h1" style="margin-top:2px">傾きによる視差について</h2>'+
+    '<p class="sub" style="line-height:1.7">端末の傾き（方位センサー）を読み取り、カードとガラスの光沢をわずかに（最大±8度）動かします。'+
+    'データは端末内の表示処理だけに使い、どこにも送信しません。あとから設定でいつでもOFFにできます。</p>'+
+    '<div class="btn-row"><button class="btn btn-sm glass" data-close="1">今はしない</button>'+
+    '<button class="btn btn-primary btn-sm" id="gyroOk">許可して有効にする</button></div>');
+  $('gyroOk').addEventListener('click', function(){
+    function enable(){
+      S.settings.gyro=true; save(); bindGyro();
+      closeOverlay($('modalOv'));
+      setTimeout(function(){ openSettings(); }, 340);
+    }
+    var D=window.DeviceOrientationEvent;
+    if(D && typeof D.requestPermission==='function'){
+      D.requestPermission().then(function(res){
+        if(res==='granted') enable();
+        else { closeOverlay($('modalOv')); toast('センサーの利用が許可されませんでした','info'); }
+      }).catch(function(){ closeOverlay($('modalOv')); toast('この端末では利用できません','info'); });
+    }else if('DeviceOrientationEvent' in window){ enable(); }
+    else { closeOverlay($('modalOv')); toast('この端末には方位センサーがありません','info'); }
+  });
+}
+if(S.settings.gyro) bindGyro();
+
+/* ---------------------------------------------------------------
+   16. PWA manifest（インライン data URI）
+   --------------------------------------------------------------- */
+(function(){
+  var iconSvg="<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'>"+
+    "<rect width='192' height='192' rx='44' fill='#4A6FA5'/>"+
+    "<rect x='34' y='52' width='124' height='88' rx='20' fill='#F4F2EE' opacity='0.92'/>"+
+    "<text x='96' y='118' font-family='sans-serif' font-size='58' font-weight='700' text-anchor='middle' fill='#23272E'>Vo</text></svg>";
+  var mf={
+    name:'Glass Vocab — 英単語学習', short_name:'Glass Vocab',
+    description:'片手で回せる英単語学習アプリ',
+    start_url:'.', scope:'.', display:'standalone', orientation:'portrait',
+    background_color:'#EDEFF2', theme_color:'#4A6FA5', lang:'ja',
+    icons:[
+      {src:'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(iconSvg), sizes:'192x192 512x512', type:'image/svg+xml', purpose:'any'}
+    ]
+  };
+  var link=document.createElement('link');
+  link.rel='manifest';
+  link.href='data:application/manifest+json;charset=utf-8,'+encodeURIComponent(JSON.stringify(mf));
+  document.head.appendChild(link);
+})();
+
+/* ---------------------------------------------------------------
+   16-2. PRO: 押した位置に光が集まるフィードバック（ホバー非依存）
+   --------------------------------------------------------------- */
+(function pressLight(){
+  var SEL='.btn,.choice,.pill,.wrow,.tab,.icon-btn';
+  function hit(e){ return e.target && e.target.closest ? e.target.closest(SEL) : null; }
+  document.addEventListener('pointerdown', function(e){
+    var t=hit(e); if(!t) return;
+    var r=t.getBoundingClientRect();
+    if(!r.width) return;
+    t.style.setProperty('--px', (((e.clientX-r.left)/r.width)*100).toFixed(1)+'%');
+    t.style.setProperty('--py', (((e.clientY-r.top)/r.height)*100).toFixed(1)+'%');
+    t.classList.add('lit');
+  }, true);
+  ['pointerup','pointercancel','pointerleave'].forEach(function(ev){
+    document.addEventListener(ev, function(e){
+      var t=hit(e); if(!t) return;
+      setTimeout(function(){ t.classList.remove('lit'); }, 200);
+    }, true);
+  });
+})();
+
+/* ---------------------------------------------------------------
+   17. 入力の細かな抑止（ダブルタップズーム等）
+   --------------------------------------------------------------- */
+/* ピンチズームを抑止（ダブルタップズームは touch-action:manipulation で無効化済み） */
+document.addEventListener('gesturestart', function(e){ e.preventDefault(); });
+document.addEventListener('gesturechange', function(e){ e.preventDefault(); });
+document.addEventListener('dblclick', function(e){ e.preventDefault(); });
+
+/* ---------------------------------------------------------------
+   18. 起動
+   --------------------------------------------------------------- */
+$('goStudy').addEventListener('click', function(){ showView('study'); if(!sess) endSessionToMenu(); });
+$('goWeak').addEventListener('click', function(){ startSession({mode:'mix', levels:['beginner','intermediate','advanced'], n:cfg.n, weak:true}); });
+$('startBtn').addEventListener('click', function(){ startSession({}); });
+$('weakBtn').addEventListener('click', function(){ startSession({mode:'mix', levels:['beginner','intermediate','advanced'], n:cfg.n, weak:true}); });
+
+applyMotionClass();
+renderTop(); renderHome(); renderMenu(); renderBook(); renderStats();
+checkBadges();
+/* タブのインジケータを初期配置し、ホームを順に立ち上げる */
+moveTabInd(); setTimeout(moveTabInd, 120);
+stagger($('view-home').querySelector('.scroll').children, 58, 60);
+
+/* URLハッシュで初期タブを指定できるように（#study / #book / #stats） */
+(function(){
+  var h=(location.hash||'').replace('#','');
+  if(VIEWS.indexOf(h)>=0) showView(h);
+  window.addEventListener('hashchange', function(){
+    var v=(location.hash||'').replace('#','');
+    if(VIEWS.indexOf(v)>=0) showView(v);
+  });
+})();
+/* 開発時の動作確認用フック（UIからは使わない） */
+window.__gv={start:startSession, view:showView, sheet:openWordSheet, ring:function(){ book.ring=true; renderBook(); }, settings:openSettings,
+  store:function(k){ openStoreSheet(k==='exam'? EXAM : PLUS); },
+  buy:function(k){ runPurchase(k==='exam'? EXAM : PLUS); },
+  owned:function(){ return {plus:hasPlus(), exam:hasExam()}; },
+  render:function(){ renderStore(); renderMenu(); }};
+})();
+</script>
+</body>
+</html>
